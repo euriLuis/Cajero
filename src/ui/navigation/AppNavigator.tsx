@@ -34,8 +34,8 @@ export const AppNavigator = () => {
                         />
                     </View>
                 ),
-                tabBarActiveTintColor: theme.colors.primary,
-                tabBarInactiveTintColor: theme.colors.mutedText,
+                tabBarActiveTintColor: theme.colors.text,
+                tabBarInactiveTintColor: theme.colors.textMuted,
                 tabBarStyle: {
                     backgroundColor: theme.colors.surface,
                     borderTopColor: theme.colors.border,
