@@ -97,7 +97,7 @@ export const SaleScreen = () => {
 
         const validation = validateQty(quantity);
         if (!validation.valid) {
-            setQtyError(validation.error);
+            setQtyError(validation.error ?? null);
             return;
         }
 
