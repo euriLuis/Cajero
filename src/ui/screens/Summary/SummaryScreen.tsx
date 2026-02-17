@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { salesRepo, withdrawalsRepo } from '../../../data/repositories';
 import { Withdrawal } from '../../../domain/models/Withdrawal';
 import { formatCents, parseMoneyToCents } from '../../../utils/money';
@@ -7,6 +7,7 @@ import { getDayRangeMs, getWeekRangeMs, formatDateShort, formatTimeNoSeconds } f
 import { theme } from '../../theme';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
+import { SoftButton, SoftInput } from '../../components';
 
 interface ProductSold {
     productName: string;
@@ -21,6 +22,7 @@ export const SummaryScreen = () => {
     const [totalSales, setTotalSales] = useState(0);
     const [totalWithdrawals, setTotalWithdrawals] = useState(0);
     const [totalWeeklySales, setTotalWeeklySales] = useState(0);
+    const [totalDailySalary, setTotalDailySalary] = useState(0);
     const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
     const [productsSold, setProductsSold] = useState<ProductSold[]>([]);
     const [loading, setLoading] = useState(false);
@@ -34,31 +36,38 @@ export const SummaryScreen = () => {
     const [pendingDelete, setPendingDelete] = useState<{ id: number; withdrawal: Withdrawal } | null>(null);
     const pendingDeleteTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+    const calcSalaryForRange = useCallback(async (startMs: number, endMs: number) => {
+        const sales = await salesRepo.sumSalesByRange(startMs, endMs);
+        return Math.round(sales * 0.005);
+    }, []);
+
     const loadData = useCallback(async () => {
         setLoading(true);
         try {
             const { startMs, endMs } = getDayRangeMs(currentDate);
             const { startMs: weekStartMs, endMs: weekEndMs } = getWeekRangeMs(currentDate);
 
-            const [salesSum, withSum, withList, weeklySalesSum, productsSoldList] = await Promise.all([
+            const [salesSum, withSum, withList, weeklySalesSum, productsSoldList, salaryDaily] = await Promise.all([
                 salesRepo.sumSalesByRange(startMs, endMs),
                 withdrawalsRepo.sumWithdrawalsByRange(startMs, endMs),
                 withdrawalsRepo.listWithdrawalsByRange(startMs, endMs),
                 salesRepo.sumSalesByRange(weekStartMs, weekEndMs),
-                salesRepo.getProductsSoldSummary(startMs, endMs)
+                salesRepo.getProductsSoldSummary(startMs, endMs),
+                calcSalaryForRange(startMs, endMs),
             ]);
 
             setTotalSales(salesSum);
             setTotalWithdrawals(withSum);
             setWithdrawals(withList);
             setTotalWeeklySales(weeklySalesSum);
+            setTotalDailySalary(salaryDaily);
             setProductsSold(productsSoldList);
         } catch (e) {
             Alert.alert('Error', 'No se pudieron cargar los datos de la caja');
         } finally {
             setLoading(false);
         }
-    }, [currentDate]);
+    }, [currentDate, calcSalaryForRange]);
 
     useFocusEffect(
         useCallback(() => {
@@ -246,8 +255,15 @@ export const SummaryScreen = () => {
                     <Text style={[styles.summaryValue, { color: '#8B5CF6' }]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(totalWeeklySales)}</Text>
                 </View>
                 <View style={[styles.summaryCard, { borderColor: '#F59E0B', backgroundColor: '#FFFBEB' }]}>
-                    <Text style={styles.summaryLabel}>Salario</Text>
+                    <Text style={styles.summaryLabel}>Salario semanal</Text>
                     <Text style={[styles.summaryValue, { color: '#F59E0B' }]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(Math.round(totalWeeklySales * 0.005))}</Text>
+                </View>
+            </View>
+
+            <View style={styles.summaryContainer}>
+                <View style={[styles.summaryCard, { borderColor: '#06B6D4' }]}>
+                    <Text style={styles.summaryLabel}>Salario diario</Text>
+                    <Text style={[styles.summaryValue, { color: '#06B6D4' }]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(totalDailySalary)}</Text>
                 </View>
             </View>
 
@@ -272,7 +288,7 @@ export const SummaryScreen = () => {
                 <Text style={styles.listTitle}>Movimientos de Caja</Text>
             </View>
         </View>
-    ), [currentDate, totalSales, totalWithdrawals, totalWeeklySales, showDatePicker, productsSold, handleQuickDate, handleDateChange]);
+    ), [currentDate, totalSales, totalWithdrawals, totalWeeklySales, totalDailySalary, showDatePicker, productsSold, handleQuickDate, handleDateChange]);
 
     const renderWithdrawalItem = ({ item }: { item: Withdrawal }) => (
         <TouchableOpacity
@@ -298,30 +314,29 @@ export const SummaryScreen = () => {
                 <Text style={styles.title}>Caja</Text>
             </View>
 
-            {/* Withdrawal Form - OUTSIDE FlatList to prevent keyboard issues */}
+            {/* Withdrawal Form */}
             <View style={styles.formCard}>
                 <Text style={styles.formTitle}>Registrar Extracción</Text>
                 <View style={styles.formRow}>
-                    <TextInput
-                        style={[styles.input, { flex: 1 }, amountError && styles.inputError]}
+                    <SoftInput
+                        containerStyle={[styles.input, { flex: 1 }, amountError && styles.inputError]}
                         placeholder="Monto (0.00)"
                         value={formAmount}
                         onChangeText={handleAmountChange}
                         keyboardType="numeric"
                     />
-                    <TextInput
-                        style={[styles.input, { flex: 2 }]}
+                    <SoftInput
+                        containerStyle={[styles.input, { flex: 2 }]}
                         placeholder="Motivo (opcional)"
                         value={formReason}
                         onChangeText={setFormReason}
                     />
-                    <TouchableOpacity 
-                        style={[styles.addBtn, amountError && styles.addBtnDisabled]} 
+                    <SoftButton
+                        label="OK"
                         onPress={handleAddWithdrawal}
                         disabled={!!amountError}
-                    >
-                        <Text style={styles.addBtnText}>OK</Text>
-                    </TouchableOpacity>
+                        style={[styles.addBtn, amountError && styles.addBtnDisabled]}
+                    />
                 </View>
                 {amountError && (
                     <Text style={styles.formErrorText}>{amountError}</Text>
@@ -475,23 +490,11 @@ const styles = StyleSheet.create({
         gap: theme.spacing.xs,
     },
     input: {
-        backgroundColor: theme.colors.surface,
-        paddingHorizontal: theme.spacing.sm,
-        paddingVertical: 8,
-        borderRadius: 4,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        fontSize: 14,
+        minHeight: 46,
     },
     addBtn: {
-        backgroundColor: theme.colors.primary,
-        paddingHorizontal: theme.spacing.md,
-        borderRadius: 4,
-        justifyContent: 'center',
-    },
-    addBtnText: {
-        color: '#fff',
-        fontWeight: 'bold',
+        minWidth: 64,
+        backgroundColor: theme.colors.surface,
     },
     listHeader: {
         paddingHorizontal: theme.spacing.md,

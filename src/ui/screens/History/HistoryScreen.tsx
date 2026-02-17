@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, memo, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, Alert } from 'react-native';
 import { salesRepo } from '../../../data/repositories';
 import { Sale } from '../../../domain/models/Sale';
 import { SaleItem } from '../../../domain/models/SaleItem';
@@ -8,6 +8,7 @@ import { getDayRangeMs, formatDateShort, formatTimeNoSeconds, formatDateTimeWith
 import { theme } from '../../theme';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
+import { SoftInput } from '../../components';
 
 // 2) Optimized Row Components
 const SaleRow = memo(({
@@ -106,8 +107,9 @@ const SaleDetailItemRow = memo(({
                                         <TouchableOpacity style={styles.qtyBtn} onPress={() => onDecrement(item.id)}>
                                             <Text style={styles.qtyBtnText}>−</Text>
                                         </TouchableOpacity>
-                                        <TextInput
-                                            style={styles.editInput}
+                                        <SoftInput
+                                            containerStyle={styles.editInput}
+                                            size="compact"
                                             keyboardType="number-pad"
                                             value={draft.qty}
                                             onChangeText={(t) => onQtyChange(item.id, t)}
@@ -121,8 +123,9 @@ const SaleDetailItemRow = memo(({
 
                                 <View style={styles.editField}>
                                     <Text style={styles.editLabel}>Precio</Text>
-                                    <TextInput
-                                        style={[styles.editInput, !!error && styles.inputError]}
+                                    <SoftInput
+                                        containerStyle={[styles.editInput, !!error && styles.inputError]}
+                                        size="compact"
                                         keyboardType="decimal-pad"
                                         value={draft.price}
                                         onChangeText={(t) => onPriceChange(item.id, t)}
@@ -589,11 +592,12 @@ const styles = StyleSheet.create({
     qtyControlRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
     qtyBtn: { width: 30, height: 30, backgroundColor: '#EEE', borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
     qtyBtnText: { fontSize: 20, fontWeight: 'bold' },
-    editInput: { borderPottomWidth: 1, borderBottomColor: theme.colors.primary, padding: 5, backgroundColor: '#F5F5F5', borderRadius: 4, textAlign: 'center' },
+    editInput: { borderBottomWidth: 1, borderBottomColor: theme.colors.primary, padding: 5, backgroundColor: '#F5F5F5', borderRadius: 4, textAlign: 'center' },
     editSubtotal: { marginTop: 10, alignItems: 'flex-end' },
     editSubtotalValue: { fontWeight: 'bold', color: theme.colors.primary, fontSize: 16 },
     actionButtonsContainer: { flexDirection: 'row', padding: 15, gap: 10, borderTopWidth: 1, borderTopColor: '#EEE' },
     actionBtn: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center' },
+    actionBtnDisabled: { opacity: 0.55 },
     saveBtn: { backgroundColor: theme.colors.primary },
     cancelBtn: { backgroundColor: '#EEE' },
     actionBtnText: { fontWeight: 'bold', color: '#FFF' },

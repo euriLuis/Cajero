@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, TextInput, Modal } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, Modal } from 'react-native';
 import { productsRepo, salesRepo } from '../../../data/repositories';
 import { Product } from '../../../domain/models/Product';
 import { formatCents } from '../../../utils/money';
 import { theme } from '../../theme';
+import { SoftInput } from '../../components';
 
 interface CartItem {
     productId: number;
@@ -97,7 +98,7 @@ export const SaleScreen = () => {
 
         const validation = validateQty(quantity);
         if (!validation.valid) {
-            setQtyError(validation.error);
+            setQtyError(validation.error ?? null);
             return;
         }
 
@@ -143,6 +144,11 @@ export const SaleScreen = () => {
     };
 
     const totalCents = cart.reduce((sum, item) => sum + (item.unitPriceSnapshotCents * item.qty), 0);
+
+
+    useEffect(() => {
+        salesRepo.setCurrentSaleDraftTotal(totalCents);
+    }, [totalCents]);
 
     const handleConfirmSale = async () => {
         if (cart.length === 0) {
@@ -258,8 +264,9 @@ export const SaleScreen = () => {
                         <Text style={styles.dropdownArrow}>▼</Text>
                     </TouchableOpacity>
 
-                    <TextInput
-                        style={styles.qtyInput}
+                    <SoftInput
+                        containerStyle={styles.qtyInput}
+                        size="compact"
                         value={quantity}
                         onChangeText={handleQuantityChange}
                         keyboardType="numeric"
@@ -669,21 +676,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: theme.spacing.sm,
     },
     modalSearch: {
-        backgroundColor: theme.colors.surface,
-        paddingVertical: theme.spacing.md,
-        paddingHorizontal: theme.spacing.base,
         marginHorizontal: theme.spacing.md,
         marginVertical: theme.spacing.md,
-        borderRadius: theme.spacing.md,
-        borderWidth: 1.5,
-        borderColor: theme.colors.border,
-        fontSize: 15,
-        color: theme.colors.text,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.08,
-        shadowRadius: 2,
-        elevation: 1,
     },
     modalList: {
         maxHeight: 400,
