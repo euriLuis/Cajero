@@ -420,7 +420,7 @@ export const CashCounterScreen = () => {
             {/* Top Comparison: Conteo Actual vs Total Ventas */}
             <BalanceComparisonCard
                 title="Balance esperado (Conteo actual ↔ Ventas)"
-                expectedLabel="Ventas del día (Esperado):"
+                expectedLabel="Total pestaña Ventas (Esperado):"
                 expectedValue={totalSalesToday}
                 actualLabel="Total contado:"
                 actualValue={totalContadoCents}
@@ -429,7 +429,7 @@ export const CashCounterScreen = () => {
             />
 
             {/* Current Counter UI */}
-            <View style={styles.sectionTitleRow}>
+            <View style={[styles.sectionTitleRow, styles.sectionTitleRowCompactTop]}>
                 <Text style={styles.sectionTitle}>Conteo Actual</Text>
                 <Text style={styles.totalDraftBig}>{formatCents(totalContadoCents)}</Text>
             </View>
@@ -626,37 +626,38 @@ const styles = StyleSheet.create({
     headerContainer: { marginBottom: 10 },
 
     // Top Summary
-    summaryCard: { padding: theme.spacing.md, marginBottom: 20, borderLeftWidth: 4, borderLeftColor: theme.colors.primary },
-    balanceTitle: { fontSize: 13, fontWeight: '700', color: theme.colors.text, marginBottom: 8 },
-    summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-    summaryLabel: { fontSize: 13, color: theme.colors.mutedText },
-    summaryValue: { fontSize: 13, fontWeight: '600', color: theme.colors.text },
-    summaryLabelBold: { fontSize: 15, fontWeight: 'bold', color: theme.colors.text },
-    diffBorder: { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: theme.colors.border },
+    summaryCard: { padding: 10, marginBottom: 10, borderLeftWidth: 4, borderLeftColor: theme.colors.primary },
+    balanceTitle: { fontSize: 11, fontWeight: '700', color: theme.colors.text, marginBottom: 4 },
+    summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 },
+    summaryLabel: { fontSize: 12, color: theme.colors.mutedText },
+    summaryValue: { fontSize: 12, fontWeight: '600', color: theme.colors.text },
+    summaryLabelBold: { fontSize: 13, fontWeight: 'bold', color: theme.colors.text },
+    diffBorder: { marginTop: 4, paddingTop: 4, borderTopWidth: 1, borderTopColor: theme.colors.border },
     diffContainer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    diffText: { fontSize: 16, fontWeight: 'bold' },
+    diffText: { fontSize: 14, fontWeight: 'bold' },
 
     // Sections
-    sectionTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, marginTop: 10 },
+    sectionTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, marginTop: 8 },
+    sectionTitleRowCompactTop: { marginTop: 5 },
     sectionTitle: { fontSize: 16, fontWeight: 'bold', color: theme.colors.text },
     totalDraftBig: { fontSize: 20, fontWeight: '900', color: theme.colors.primary },
     totalStoredText: { fontSize: 18, fontWeight: '700', color: theme.colors.text },
 
     // Table
-    tableCard: { padding: 0, overflow: 'hidden', marginBottom: 15 },
-    tableHeader: { flexDirection: 'row', backgroundColor: '#F0F2F5', padding: 8 },
+    tableCard: { padding: 0, overflow: 'hidden', marginBottom: 10 },
+    tableHeader: { flexDirection: 'row', backgroundColor: '#F0F2F5', padding: 6 },
     tableHCell: { fontSize: 11, fontWeight: 'bold', color: theme.colors.mutedText },
-    tableRow: { flexDirection: 'row', alignItems: 'center', padding: 5, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
+    tableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 3, paddingHorizontal: 5, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
     noBorder: { borderBottomWidth: 0 },
     tableCell: { fontSize: 14, color: theme.colors.text },
     tableInput: {
-        width: 80, height: 34, borderWidth: 1.5, borderColor: theme.colors.primary,
-        borderRadius: radius.md, textAlign: 'center', fontSize: 15, fontWeight: 'bold',
+        width: 66, height: 26, borderWidth: 1.5, borderColor: theme.colors.primary,
+        borderRadius: radius.md, textAlign: 'center', fontSize: 13, fontWeight: 'bold',
         backgroundColor: '#FFF', paddingVertical: 0
     },
 
     // Buttons
-    buttonRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
+    buttonRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
     btnAction: { flex: 1, height: 44, borderRadius: radius.md, justifyContent: 'center', alignItems: 'center' },
     btnIn: { backgroundColor: theme.colors.primary },
     btnOut: { backgroundColor: '#C62828' },
