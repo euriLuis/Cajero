@@ -13,7 +13,7 @@ import {
     Modal,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { AppScreen, Card, AppButton } from '../../components';
+import { AppScreen, AppButton, SoftCard, SoftButton } from '../../components';
 import { theme, radius } from '../../theme';
 import { formatCents } from '../../../utils/money';
 import { cashRepo, salesRepo, withdrawalsRepo } from '../../../data/repositories';
@@ -144,7 +144,7 @@ const BalanceComparisonCard = memo(({
     const tagStyle = diffValue > 0 ? styles.tagPositive : diffValue < 0 ? styles.tagNegative : styles.tagNeutral;
 
     return (
-        <Card style={[styles.summaryCard, { borderLeftColor: accentColor }]}>
+        <SoftCard style={[styles.summaryCard, { borderLeftColor: accentColor }]}>
             <Text style={styles.balanceTitle}>{title}</Text>
             <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>{expectedLabel}</Text>
@@ -163,7 +163,7 @@ const BalanceComparisonCard = memo(({
                     </View>
                 </View>
             </View>
-        </Card>
+        </SoftCard>
     );
 });
 
@@ -437,7 +437,7 @@ export const CashCounterScreen = () => {
                 <Text style={styles.totalDraftBig}>{formatCents(totalContadoCents)}</Text>
             </View>
 
-            <Card variant="elevated" style={styles.tableCard}>
+            <SoftCard style={styles.tableCard}>
                 <View style={styles.tableHeader}>
                     <Text style={[styles.tableHCell, { flex: 1.5 }]}>Denom.</Text>
                     <Text style={[styles.tableHCell, { flex: 1, textAlign: 'center' }]}>Cantidad</Text>
@@ -455,19 +455,13 @@ export const CashCounterScreen = () => {
                         isLast={idx === DENOMS.length - 1}
                     />
                 ))}
-            </Card>
+            </SoftCard>
 
             {/* Counter Buttons */}
             <View style={styles.buttonRow}>
-                <TouchableOpacity style={[styles.btnAction, styles.btnIn]} onPress={() => handleApplyMovement('IN')}>
-                    <Text style={styles.btnActionText}>AGREGAR</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.btnAction, styles.btnOut]} onPress={() => handleApplyMovement('OUT')}>
-                    <Text style={styles.btnActionText}>RESTAR</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.btnAction, styles.btnReset]} onPress={handleResetDraft}>
-                    <Text style={styles.btnActionText}>RESET</Text>
-                </TouchableOpacity>
+                <SoftButton label="AGREGAR" onPress={() => handleApplyMovement('IN')} style={styles.btnAction} />
+                <SoftButton label="RESTAR" variant="danger" onPress={() => handleApplyMovement('OUT')} style={styles.btnAction} />
+                <SoftButton label="RESET" variant="ghost" onPress={handleResetDraft} style={styles.btnAction} />
             </View>
 
             {/* Stored Cash Comparison vs Summary Caja */}
@@ -487,7 +481,7 @@ export const CashCounterScreen = () => {
                 <Text style={styles.totalStoredText}>{formatCents(totalStoredCents)}</Text>
             </View>
 
-            <Card variant="outlined" style={styles.storedBalanceContainer}>
+            <SoftCard style={styles.storedBalanceContainer}>
                 <View style={styles.storedGrid}>
                     {DENOMS.map(d => (
                         <StoredGridItem
@@ -497,7 +491,7 @@ export const CashCounterScreen = () => {
                         />
                     ))}
                 </View>
-            </Card>
+            </SoftCard>
 
             {/* Section Title: History */}
             <View style={[styles.sectionTitleRow, { marginBottom: 10, marginTop: 20 }]}>
@@ -610,9 +604,7 @@ export const CashCounterScreen = () => {
                             )}
 
                             <View style={styles.modalActions}>
-                                <TouchableOpacity style={styles.btnDelete} onPress={handleDeleteMovement}>
-                                    <Text style={styles.btnDeleteText}>Eliminar Movimiento</Text>
-                                </TouchableOpacity>
+                                <SoftButton label="Eliminar Movimiento" variant="danger" onPress={handleDeleteMovement} style={styles.btnDelete} />
                                 <AppButton label="Cerrar" onPress={() => setDetailModalVisible(false)} variant="secondary" />
                             </View>
                         </View>
@@ -648,7 +640,7 @@ const styles = StyleSheet.create({
 
     // Table
     tableCard: { padding: 0, overflow: 'hidden', marginBottom: 10 },
-    tableHeader: { flexDirection: 'row', backgroundColor: '#F0F2F5', padding: 6 },
+    tableHeader: { flexDirection: 'row', backgroundColor: theme.colors.surface2, padding: 6 },
     tableHCell: { fontSize: 11, fontWeight: 'bold', color: theme.colors.mutedText },
     tableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 3, paddingHorizontal: 5, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
     noBorder: { borderBottomWidth: 0 },
@@ -656,22 +648,18 @@ const styles = StyleSheet.create({
     tableInput: {
         width: 66, height: 26, borderWidth: 1.5, borderColor: theme.colors.primary,
         borderRadius: radius.md, textAlign: 'center', fontSize: 13, fontWeight: 'bold',
-        backgroundColor: '#FFF', paddingVertical: 0
+        backgroundColor: theme.colors.surface2, paddingVertical: 0
     },
 
     // Buttons
     buttonRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
-    btnAction: { flex: 1, height: 44, borderRadius: radius.md, justifyContent: 'center', alignItems: 'center' },
-    btnIn: { backgroundColor: theme.colors.primary },
-    btnOut: { backgroundColor: '#C62828' },
-    btnReset: { backgroundColor: '#757575' },
-    btnActionText: { color: '#FFF', fontSize: 12, fontWeight: '800' },
+    btnAction: { flex: 1 },
 
     // Stored Balance New Layout
     storedBalanceContainer: {
         padding: 12,
         marginTop: 4,
-        backgroundColor: '#F8F9FA'
+        backgroundColor: theme.colors.surface
     },
     storedGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between' },
     storedGridItemWrapper: {
@@ -688,7 +676,7 @@ const styles = StyleSheet.create({
 
     // History List
     movRow: {
-        flexDirection: 'row', alignItems: 'center', padding: 12, backgroundColor: '#FFF',
+        flexDirection: 'row', alignItems: 'center', padding: 12, backgroundColor: theme.colors.surface,
         borderRadius: radius.md, marginBottom: 8, borderWidth: 1, borderColor: theme.colors.border
     },
     movTimeCol: { width: 70, alignItems: 'center' },
@@ -740,6 +728,5 @@ const styles = StyleSheet.create({
     modalDenomLabel: { fontSize: 14, color: theme.colors.text },
     modalDenomValue: { fontSize: 14, fontWeight: '600', color: theme.colors.primary },
     modalActions: { gap: 10 },
-    btnDelete: { backgroundColor: '#FFEBEE', padding: 12, borderRadius: radius.md, alignItems: 'center', marginBottom: 8 },
-    btnDeleteText: { color: '#C62828', fontWeight: 'bold' }
+    btnDelete: { marginBottom: 8 }
 });
