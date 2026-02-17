@@ -1,7 +1,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { View, Text } from 'react-native';
 import { ProductsScreen } from '../screens/Products/ProductsScreen';
 import { SaleScreen } from '../screens/Sale/SaleScreen';
 import { HistoryScreen } from '../screens/History/HistoryScreen';
@@ -11,12 +10,12 @@ import { theme } from '../theme';
 
 const Tab = createBottomTabNavigator();
 
-const iconNames: Record<string, { active: string; inactive: string }> = {
-    Venta: { active: 'cart', inactive: 'cart-outline' },
-    Contador: { active: 'calculator-variant', inactive: 'calculator-variant-outline' },
-    Resumen: { active: 'finance', inactive: 'chart-line' },
-    Productos: { active: 'package-variant', inactive: 'package-variant-closed' },
-    Historial: { active: 'clipboard-text-clock', inactive: 'clipboard-text-clock-outline' },
+const tabIcons: Record<string, { active: string; inactive: string }> = {
+    Venta: { active: '🛒', inactive: '🛍️' },
+    Contador: { active: '🧮', inactive: '📟' },
+    Resumen: { active: '📊', inactive: '📈' },
+    Productos: { active: '📦', inactive: '📁' },
+    Historial: { active: '🧾', inactive: '📋' },
 };
 
 export const AppNavigator = () => {
@@ -27,11 +26,9 @@ export const AppNavigator = () => {
                 headerShown: false,
                 tabBarIcon: ({ focused, color }) => (
                     <View style={{ marginTop: focused ? -10 : 0 }}>
-                        <MaterialCommunityIcons
-                            name={focused ? iconNames[route.name].active : iconNames[route.name].inactive}
-                            size={focused ? 35 : 24}
-                            color={color}
-                        />
+                        <Text style={{ fontSize: focused ? 30 : 22, color }}>
+                            {focused ? tabIcons[route.name].active : tabIcons[route.name].inactive}
+                        </Text>
                     </View>
                 ),
                 tabBarActiveTintColor: theme.colors.text,
