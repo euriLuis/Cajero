@@ -172,6 +172,7 @@ export const CashCounterScreen = () => {
     const [cashState, setCashState] = useState<CashState | null>(null);
     const [movements, setMovements] = useState<CashMovement[]>([]);
     const [totalSalesToday, setTotalSalesToday] = useState<number>(0);
+    const [salesTabTotal, setSalesTabTotal] = useState<number>(0);
     const [totalWithdrawalsToday, setTotalWithdrawalsToday] = useState<number>(0);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -192,10 +193,11 @@ export const CashCounterScreen = () => {
         else setRefreshing(true);
 
         try {
-            const [draft, state, movs, { startMs, endMs }] = await Promise.all([
+            const [draft, state, movs, salesDraftTotal, { startMs, endMs }] = await Promise.all([
                 cashRepo.getCashCounterDraft(),
                 cashRepo.getCashState(),
                 cashRepo.listCashMovements(20),
+                salesRepo.getCurrentSaleDraftTotal(),
                 getDayRangeMs(new Date())
             ]);
 
@@ -207,6 +209,7 @@ export const CashCounterScreen = () => {
             setQuantities(initial);
             setCashState(state);
             setMovements(movs);
+            setSalesTabTotal(salesDraftTotal);
 
             const [salesSum, withdrawalsSum] = await Promise.all([
                 salesRepo.sumSalesByRange(startMs, endMs),
@@ -288,7 +291,7 @@ export const CashCounterScreen = () => {
     }, [quantities]);
 
     // Comparisons
-    const diffConteoVsVentas = useMemo(() => totalContadoCents - totalSalesToday, [totalContadoCents, totalSalesToday]);
+    const diffConteoVsVentas = useMemo(() => totalContadoCents - salesTabTotal, [totalContadoCents, salesTabTotal]);
 
     const totalStoredCents = useMemo(() => {
         if (!cashState) return 0;
@@ -421,7 +424,7 @@ export const CashCounterScreen = () => {
             <BalanceComparisonCard
                 title="Balance esperado (Conteo actual ↔ Ventas)"
                 expectedLabel="Total pestaña Ventas (Esperado):"
-                expectedValue={totalSalesToday}
+                expectedValue={salesTabTotal}
                 actualLabel="Total contado:"
                 actualValue={totalContadoCents}
                 diffValue={diffConteoVsVentas}

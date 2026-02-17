@@ -144,6 +144,11 @@ export const SaleScreen = () => {
 
     const totalCents = cart.reduce((sum, item) => sum + (item.unitPriceSnapshotCents * item.qty), 0);
 
+
+    useEffect(() => {
+        salesRepo.setCurrentSaleDraftTotal(totalCents);
+    }, [totalCents]);
+
     const handleConfirmSale = async () => {
         if (cart.length === 0) {
             Alert.alert('Carrito vacío', 'Añade productos antes de confirmar la venta');
