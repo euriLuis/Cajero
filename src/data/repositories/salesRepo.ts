@@ -224,6 +224,27 @@ export const salesRepo = {
         });
     },
 
+
+
+    async getCurrentSaleDraftTotal(): Promise<number> {
+        const db = await getDb();
+        const result = await db.getFirstAsync<{ value: string }>(
+            'SELECT value FROM app_settings WHERE key = ?',
+            ['sale_current_total_cents']
+        );
+
+        const parsed = Number(result?.value ?? 0);
+        return Number.isFinite(parsed) ? parsed : 0;
+    },
+
+    async setCurrentSaleDraftTotal(totalCents: number): Promise<void> {
+        const db = await getDb();
+        await db.runAsync(
+            'INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)',
+            ['sale_current_total_cents', String(totalCents)]
+        );
+    },
+
     async getProductsSoldSummary(startMs: number, endMs: number): Promise<Array<{ productName: string; totalQty: number }>> {
         const db = await getDb();
         const result = await db.getAllAsync<any>(

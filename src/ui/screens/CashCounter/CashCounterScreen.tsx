@@ -11,20 +11,23 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     Modal,
-    StyleProp,
-    ViewStyle,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { AppScreen, Card, AppButton } from '../../components';
 import { theme, radius } from '../../theme';
 import { formatCents } from '../../../utils/money';
 import { cashRepo, salesRepo, withdrawalsRepo } from '../../../data/repositories';
-import { getDayRangeMs, formatDateTimeWithSeconds, formatTimeNoSeconds } from '../../../utils/dates';
+import { getDayRangeMs, formatDateTimeWithSeconds, formatTimeNoSeconds, formatDateShort } from '../../../utils/dates';
 import { CashMovement, CashState } from '../../../data/repositories/cashRepo';
 
 const DENOMS = [1000, 500, 200, 100, 50, 20, 10, 5];
 
 type QuantitiesState = Record<string, string>;
+
+
+type MovementListRow =
+    | { type: 'day'; key: string; dayLabel: string }
+    | { type: 'movement'; key: string; movement: CashMovement };
 
 // 2) Optimized Row Components
 const MovementRow = memo(({
@@ -119,11 +122,57 @@ const StoredGridItem = memo(({ d, qty }: { d: number; qty: number }) => (
     </View>
 ));
 
+const BalanceComparisonCard = memo(({
+    title,
+    expectedLabel,
+    expectedValue,
+    actualLabel,
+    actualValue,
+    diffValue,
+    accentColor,
+}: {
+    title: string;
+    expectedLabel: string;
+    expectedValue: number;
+    actualLabel: string;
+    actualValue: number;
+    diffValue: number;
+    accentColor: string;
+}) => {
+    const diffStatus = diffValue > 0 ? 'SOBRA' : diffValue < 0 ? 'FALTA' : 'OK';
+    const diffStyle = diffValue > 0 ? styles.positive : diffValue < 0 ? styles.negative : styles.neutral;
+    const tagStyle = diffValue > 0 ? styles.tagPositive : diffValue < 0 ? styles.tagNegative : styles.tagNeutral;
+
+    return (
+        <Card style={[styles.summaryCard, { borderLeftColor: accentColor }]}>
+            <Text style={styles.balanceTitle}>{title}</Text>
+            <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>{expectedLabel}</Text>
+                <Text style={styles.summaryValue}>{formatCents(expectedValue)}</Text>
+            </View>
+            <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>{actualLabel}</Text>
+                <Text style={styles.summaryValue}>{formatCents(actualValue)}</Text>
+            </View>
+            <View style={[styles.summaryRow, styles.diffBorder]}>
+                <Text style={styles.summaryLabelBold}>Diferencia:</Text>
+                <View style={styles.diffContainer}>
+                    <Text style={[styles.diffText, diffStyle]}>{formatCents(diffValue)}</Text>
+                    <View style={[styles.tag, tagStyle]}>
+                        <Text style={styles.tagText}>{diffStatus}</Text>
+                    </View>
+                </View>
+            </View>
+        </Card>
+    );
+});
+
 export const CashCounterScreen = () => {
     const [quantities, setQuantities] = useState<QuantitiesState>({});
     const [cashState, setCashState] = useState<CashState | null>(null);
     const [movements, setMovements] = useState<CashMovement[]>([]);
     const [totalSalesToday, setTotalSalesToday] = useState<number>(0);
+    const [salesTabTotal, setSalesTabTotal] = useState<number>(0);
     const [totalWithdrawalsToday, setTotalWithdrawalsToday] = useState<number>(0);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -144,10 +193,11 @@ export const CashCounterScreen = () => {
         else setRefreshing(true);
 
         try {
-            const [draft, state, movs, { startMs, endMs }] = await Promise.all([
+            const [draft, state, movs, salesDraftTotal, { startMs, endMs }] = await Promise.all([
                 cashRepo.getCashCounterDraft(),
                 cashRepo.getCashState(),
                 cashRepo.listCashMovements(20),
+                salesRepo.getCurrentSaleDraftTotal(),
                 getDayRangeMs(new Date())
             ]);
 
@@ -159,6 +209,7 @@ export const CashCounterScreen = () => {
             setQuantities(initial);
             setCashState(state);
             setMovements(movs);
+            setSalesTabTotal(salesDraftTotal);
 
             const [salesSum, withdrawalsSum] = await Promise.all([
                 salesRepo.sumSalesByRange(startMs, endMs),
@@ -240,7 +291,7 @@ export const CashCounterScreen = () => {
     }, [quantities]);
 
     // Comparisons
-    const diffConteoVsVentas = useMemo(() => totalContadoCents - totalSalesToday, [totalContadoCents, totalSalesToday]);
+    const diffConteoVsVentas = useMemo(() => totalContadoCents - salesTabTotal, [totalContadoCents, salesTabTotal]);
 
     const totalStoredCents = useMemo(() => {
         if (!cashState) return 0;
@@ -324,43 +375,64 @@ export const CashCounterScreen = () => {
         setDetailModalVisible(true);
     }, []);
 
-    const renderMovement = useCallback(({ item }: { item: CashMovement }) => (
-        <MovementRow
-            item={item}
-            onPress={handleOpenDetail}
-            deletingId={deletingId}
-        />
-    ), [handleOpenDetail, deletingId]);
+    const movementRows = useMemo<MovementListRow[]>(() => {
+        const rows: MovementListRow[] = [];
+        let lastDay = '';
+
+        for (const movement of movements) {
+            const dayLabel = formatDateShort(new Date(movement.created_at).getTime());
+            if (dayLabel !== lastDay) {
+                rows.push({
+                    type: 'day',
+                    key: `day-${dayLabel}-${movement.id}`,
+                    dayLabel,
+                });
+                lastDay = dayLabel;
+            }
+
+            rows.push({
+                type: 'movement',
+                key: `mov-${movement.id}`,
+                movement,
+            });
+        }
+
+        return rows;
+    }, [movements]);
+
+    const renderMovement = useCallback(({ item }: { item: MovementListRow }) => {
+        if (item.type === 'day') {
+            return (
+                <View style={styles.dayHeader}>
+                    <Text style={styles.dayHeaderText}>{item.dayLabel}</Text>
+                </View>
+            );
+        }
+
+        return (
+            <MovementRow
+                item={item.movement}
+                onPress={handleOpenDetail}
+                deletingId={deletingId}
+            />
+        );
+    }, [handleOpenDetail, deletingId]);
 
     const HeaderComponent = useMemo(() => (
         <View style={styles.headerContainer}>
             {/* Top Comparison: Conteo Actual vs Total Ventas */}
-            {totalSalesToday > 0 && (
-                <Card style={styles.summaryCard}>
-                    <View style={styles.summaryRow}>
-                        <Text style={styles.summaryLabel}>Ventas del día (Esperado):</Text>
-                        <Text style={styles.summaryValue}>{formatCents(totalSalesToday)}</Text>
-                    </View>
-                    <View style={styles.summaryRow}>
-                        <Text style={styles.summaryLabel}>Total contado:</Text>
-                        <Text style={styles.summaryValue}>{formatCents(totalContadoCents)}</Text>
-                    </View>
-                    <View style={[styles.summaryRow, styles.diffBorder]}>
-                        <Text style={styles.summaryLabelBold}>Diferencia:</Text>
-                        <View style={styles.diffContainer}>
-                            <Text style={[styles.diffText, diffConteoVsVentas > 0 ? styles.positive : diffConteoVsVentas < 0 ? styles.negative : styles.neutral]}>
-                                {formatCents(diffConteoVsVentas)}
-                            </Text>
-                            <View style={[styles.tag, diffConteoVsVentas > 0 ? styles.tagPositive : diffConteoVsVentas < 0 ? styles.tagNegative : styles.tagNeutral]}>
-                                <Text style={styles.tagText}>{diffConteoVsVentas > 0 ? 'SOBRA' : diffConteoVsVentas < 0 ? 'FALTA' : 'OK'}</Text>
-                            </View>
-                        </View>
-                    </View>
-                </Card>
-            )}
+            <BalanceComparisonCard
+                title="Balance esperado (Conteo actual ↔ Ventas)"
+                expectedLabel="Total pestaña Ventas (Esperado):"
+                expectedValue={salesTabTotal}
+                actualLabel="Total contado:"
+                actualValue={totalContadoCents}
+                diffValue={diffConteoVsVentas}
+                accentColor={theme.colors.primary}
+            />
 
             {/* Current Counter UI */}
-            <View style={styles.sectionTitleRow}>
+            <View style={[styles.sectionTitleRow, styles.sectionTitleRowCompactTop]}>
                 <Text style={styles.sectionTitle}>Conteo Actual</Text>
                 <Text style={styles.totalDraftBig}>{formatCents(totalContadoCents)}</Text>
             </View>
@@ -399,29 +471,15 @@ export const CashCounterScreen = () => {
             </View>
 
             {/* Stored Cash Comparison vs Summary Caja */}
-            {totalSalesToday > 0 && (
-                <Card style={[styles.summaryCard, { borderLeftColor: '#10B981', marginTop: 20, marginBottom: 10 } as ViewStyle]}>
-                    <View style={styles.summaryRow}>
-                        <Text style={styles.summaryLabel}>Caja Resumen (Esperado):</Text>
-                        <Text style={styles.summaryValue}>{formatCents(expectedCashSummary)}</Text>
-                    </View>
-                    <View style={styles.summaryRow}>
-                        <Text style={styles.summaryLabel}>Total en Caja Guardado:</Text>
-                        <Text style={styles.summaryValue}>{formatCents(totalStoredCents)}</Text>
-                    </View>
-                    <View style={[styles.summaryRow, styles.diffBorder]}>
-                        <Text style={styles.summaryLabelBold}>Diferencia:</Text>
-                        <View style={styles.diffContainer}>
-                            <Text style={[styles.diffText, diffStoredVsSummary > 0 ? styles.positive : diffStoredVsSummary < 0 ? styles.negative : styles.neutral]}>
-                                {formatCents(diffStoredVsSummary)}
-                            </Text>
-                            <View style={[styles.tag, diffStoredVsSummary > 0 ? styles.tagPositive : diffStoredVsSummary < 0 ? styles.tagNegative : styles.tagNeutral]}>
-                                <Text style={styles.tagText}>{diffStoredVsSummary > 0 ? 'SOBRA' : diffStoredVsSummary < 0 ? 'FALTA' : 'OK'}</Text>
-                            </View>
-                        </View>
-                    </View>
-                </Card>
-            )}
+            <BalanceComparisonCard
+                title="Balance esperado (Caja guardada ↔ Resumen)"
+                expectedLabel="Caja Resumen (Esperado):"
+                expectedValue={expectedCashSummary}
+                actualLabel="Total en Caja Guardado:"
+                actualValue={totalStoredCents}
+                diffValue={diffStoredVsSummary}
+                accentColor="#10B981"
+            />
 
             {/* Stored Balance Detail */}
             <View style={styles.sectionTitleRow}>
@@ -480,8 +538,8 @@ export const CashCounterScreen = () => {
             >
                 {/* 3) Optimized FlatList */}
                 <FlatList
-                    data={movements}
-                    keyExtractor={item => item.id.toString()}
+                    data={movementRows}
+                    keyExtractor={item => item.key}
                     renderItem={renderMovement}
                     ListHeaderComponent={HeaderComponent}
                     ListEmptyComponent={<Text style={styles.emptyText}>No hay movimientos registrados</Text>}
@@ -571,36 +629,38 @@ const styles = StyleSheet.create({
     headerContainer: { marginBottom: 10 },
 
     // Top Summary
-    summaryCard: { padding: theme.spacing.md, marginBottom: 20, borderLeftWidth: 4, borderLeftColor: theme.colors.primary },
-    summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-    summaryLabel: { fontSize: 13, color: theme.colors.mutedText },
-    summaryValue: { fontSize: 13, fontWeight: '600', color: theme.colors.text },
-    summaryLabelBold: { fontSize: 15, fontWeight: 'bold', color: theme.colors.text },
-    diffBorder: { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: theme.colors.border },
+    summaryCard: { padding: 10, marginBottom: 10, borderLeftWidth: 4, borderLeftColor: theme.colors.primary },
+    balanceTitle: { fontSize: 11, fontWeight: '700', color: theme.colors.text, marginBottom: 4 },
+    summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 },
+    summaryLabel: { fontSize: 12, color: theme.colors.mutedText },
+    summaryValue: { fontSize: 12, fontWeight: '600', color: theme.colors.text },
+    summaryLabelBold: { fontSize: 13, fontWeight: 'bold', color: theme.colors.text },
+    diffBorder: { marginTop: 4, paddingTop: 4, borderTopWidth: 1, borderTopColor: theme.colors.border },
     diffContainer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    diffText: { fontSize: 16, fontWeight: 'bold' },
+    diffText: { fontSize: 14, fontWeight: 'bold' },
 
     // Sections
-    sectionTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, marginTop: 10 },
+    sectionTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, marginTop: 8 },
+    sectionTitleRowCompactTop: { marginTop: 5 },
     sectionTitle: { fontSize: 16, fontWeight: 'bold', color: theme.colors.text },
     totalDraftBig: { fontSize: 20, fontWeight: '900', color: theme.colors.primary },
     totalStoredText: { fontSize: 18, fontWeight: '700', color: theme.colors.text },
 
     // Table
-    tableCard: { padding: 0, overflow: 'hidden', marginBottom: 15 },
-    tableHeader: { flexDirection: 'row', backgroundColor: '#F0F2F5', padding: 8 },
+    tableCard: { padding: 0, overflow: 'hidden', marginBottom: 10 },
+    tableHeader: { flexDirection: 'row', backgroundColor: '#F0F2F5', padding: 6 },
     tableHCell: { fontSize: 11, fontWeight: 'bold', color: theme.colors.mutedText },
-    tableRow: { flexDirection: 'row', alignItems: 'center', padding: 5, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
+    tableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 3, paddingHorizontal: 5, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
     noBorder: { borderBottomWidth: 0 },
     tableCell: { fontSize: 14, color: theme.colors.text },
     tableInput: {
-        width: 80, height: 34, borderWidth: 1.5, borderColor: theme.colors.primary,
-        borderRadius: radius.md, textAlign: 'center', fontSize: 15, fontWeight: 'bold',
+        width: 66, height: 26, borderWidth: 1.5, borderColor: theme.colors.primary,
+        borderRadius: radius.md, textAlign: 'center', fontSize: 13, fontWeight: 'bold',
         backgroundColor: '#FFF', paddingVertical: 0
     },
 
     // Buttons
-    buttonRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
+    buttonRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
     btnAction: { flex: 1, height: 44, borderRadius: radius.md, justifyContent: 'center', alignItems: 'center' },
     btnIn: { backgroundColor: theme.colors.primary },
     btnOut: { backgroundColor: '#C62828' },
@@ -637,6 +697,8 @@ const styles = StyleSheet.create({
     movDescText: { fontSize: 13, color: theme.colors.text },
     movAmountCol: { alignItems: 'flex-end' },
     movAmountText: { fontSize: 14, fontWeight: 'bold' },
+    dayHeader: { paddingVertical: 8, paddingHorizontal: 4 },
+    dayHeaderText: { fontSize: 12, fontWeight: '700', color: theme.colors.mutedText, textTransform: 'uppercase' },
 
     // Undo Toast
     undoContainer: {

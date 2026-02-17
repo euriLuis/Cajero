@@ -97,7 +97,7 @@ export const SaleScreen = () => {
 
         const validation = validateQty(quantity);
         if (!validation.valid) {
-            setQtyError(validation.error);
+            setQtyError(validation.error ?? null);
             return;
         }
 
@@ -143,6 +143,11 @@ export const SaleScreen = () => {
     };
 
     const totalCents = cart.reduce((sum, item) => sum + (item.unitPriceSnapshotCents * item.qty), 0);
+
+
+    useEffect(() => {
+        salesRepo.setCurrentSaleDraftTotal(totalCents);
+    }, [totalCents]);
 
     const handleConfirmSale = async () => {
         if (cart.length === 0) {
