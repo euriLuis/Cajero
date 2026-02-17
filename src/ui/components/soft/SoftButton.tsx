@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TouchableOpacity, Text, StyleSheet, ViewStyle } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { theme } from '../../theme';
 
 type Variant = 'primary' | 'ghost' | 'danger';
@@ -8,7 +8,7 @@ export const SoftButton: React.FC<{
   label: string;
   onPress: () => void;
   variant?: Variant;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   disabled?: boolean;
 }> = ({ label, onPress, variant = 'primary', style, disabled }) => {
   const [pressed, setPressed] = useState(false);

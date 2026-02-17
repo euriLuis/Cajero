@@ -13,7 +13,7 @@ import {
     Modal,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { AppScreen, AppButton, SoftCard, SoftButton } from '../../components';
+import { AppScreen, AppButton, SoftCard, SoftButton, SoftInput } from '../../components';
 import { theme, radius } from '../../theme';
 import { formatCents } from '../../../utils/money';
 import { cashRepo, salesRepo, withdrawalsRepo } from '../../../data/repositories';
@@ -89,9 +89,11 @@ const TableRow = memo(({
         <View style={[styles.tableRow, isLast && styles.noBorder]}>
             <Text style={[styles.tableCell, { flex: 1.5, fontWeight: '600' }]}>${denom}</Text>
             <View style={{ flex: 1, alignItems: 'center' }}>
-                <TextInput
+                <SoftInput
                     ref={inputRef}
-                    style={styles.tableInput}
+                    containerStyle={styles.tableInput}
+                    inputStyle={styles.tableInputText}
+                    size="compact"
                     value={value}
                     onChangeText={onChangeText}
                     keyboardType="number-pad"
@@ -646,9 +648,13 @@ const styles = StyleSheet.create({
     noBorder: { borderBottomWidth: 0 },
     tableCell: { fontSize: 14, color: theme.colors.text },
     tableInput: {
-        width: 66, height: 26, borderWidth: 1.5, borderColor: theme.colors.primary,
-        borderRadius: radius.md, textAlign: 'center', fontSize: 13, fontWeight: 'bold',
-        backgroundColor: theme.colors.surface2, paddingVertical: 0
+        width: 70,
+        minHeight: 38,
+    },
+    tableInputText: {
+        textAlign: 'center',
+        fontSize: 13,
+        fontWeight: '700',
     },
 
     // Buttons

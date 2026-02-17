@@ -4,7 +4,7 @@ import { productsRepo } from '../../../data/repositories';
 import { Product } from '../../../domain/models/Product';
 import { formatCents, parseMoneyToCents } from '../../../utils/money';
 import { theme } from '../../theme';
-import { SoftCard, SoftInput, SoftButton } from '../../components';
+import { SoftCard, SoftSearchInput, SoftButton, SoftInput } from '../../components';
 
 const ProductRow = memo(({ product, onPress }: { product: Product; onPress: (p: Product) => void }) => (
     <TouchableOpacity onPress={() => onPress(product)} activeOpacity={0.9}>
@@ -96,14 +96,13 @@ export const ProductsScreen = () => {
     const renderHeader = useMemo(() => (
         <View style={styles.headerContainer}>
             <View style={styles.topBar}>
-                <SoftInput
-                    icon="⌕"
-                    style={styles.searchInput}
+                <SoftSearchInput
+                    containerStyle={styles.searchInput}
                     placeholder="Buscar producto..."
                     value={search}
                     onChangeText={setSearch}
                 />
-                <SoftButton label="Agregar" onPress={handleOpenAdd} />
+                <SoftButton label="＋ Agregar producto" onPress={handleOpenAdd} style={styles.addProductBtn} />
             </View>
         </View>
     ), [search, handleOpenAdd]);
@@ -160,7 +159,8 @@ const styles = StyleSheet.create({
     title: { ...theme.typography.title, color: theme.colors.text },
     headerContainer: { paddingHorizontal: theme.spacing.base, paddingBottom: theme.spacing.sm },
     topBar: { flexDirection: 'row', gap: theme.spacing.sm, alignItems: 'center' },
-    searchInput: { minWidth: 190 },
+    searchInput: { flexBasis: '50%', flexGrow: 0, flexShrink: 1 },
+    addProductBtn: { minHeight: 48, paddingHorizontal: theme.spacing.lg, backgroundColor: theme.colors.surface },
     listContent: { paddingHorizontal: theme.spacing.base, paddingBottom: theme.spacing.xl, gap: theme.spacing.sm },
     itemCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: theme.spacing.md },
     itemName: { ...theme.typography.body, color: theme.colors.text, flex: 1 },

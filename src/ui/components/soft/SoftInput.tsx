@@ -1,27 +1,40 @@
 import React from 'react';
-import { View, TextInput, StyleSheet, TextInputProps, Text } from 'react-native';
+import { View, TextInput, StyleSheet, TextInputProps, Text, StyleProp, ViewStyle, TextStyle } from 'react-native';
 import { theme } from '../../theme';
 
 interface SoftInputProps extends TextInputProps {
-  icon?: string;
+  leftIcon?: string;
+  rightIcon?: string;
+  size?: 'normal' | 'compact';
+  containerStyle?: StyleProp<ViewStyle>;
+  inputStyle?: StyleProp<TextStyle>;
 }
 
-export const SoftInput: React.FC<SoftInputProps> = ({ icon, style, ...props }) => (
-  <View style={styles.container}>
-    {icon ? <Text style={styles.icon}>{icon}</Text> : null}
+export const SoftInput = React.forwardRef<TextInput, SoftInputProps>(({
+  leftIcon,
+  rightIcon,
+  size = 'normal',
+  containerStyle,
+  inputStyle,
+  ...props
+}, ref) => (
+  <View style={[styles.container, size === 'compact' && styles.compactContainer, containerStyle]}>
+    {!!leftIcon && <Text style={styles.icon}>{leftIcon}</Text>}
     <TextInput
-      style={[styles.input, style]}
+      ref={ref}
+      style={[styles.input, size === 'compact' && styles.compactInput, inputStyle]}
       placeholderTextColor={theme.colors.textMuted}
       {...props}
     />
+    {!!rightIcon && <Text style={styles.icon}>{rightIcon}</Text>}
   </View>
-);
+));
 
 const styles = StyleSheet.create({
   container: {
-    minHeight: 44,
+    minHeight: 48,
     borderRadius: theme.radius.control,
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
     borderColor: theme.colors.border,
     paddingHorizontal: theme.spacing.md,
@@ -29,14 +42,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...theme.shadows.softControlShadow,
   },
+  compactContainer: {
+    minHeight: 40,
+    borderRadius: 14,
+    paddingHorizontal: theme.spacing.sm,
+  },
   icon: {
-    marginRight: theme.spacing.sm,
+    marginHorizontal: 4,
     color: theme.colors.textMuted,
+    fontSize: 14,
   },
   input: {
     flex: 1,
     color: theme.colors.text,
     fontSize: theme.typography.body.fontSize,
     paddingVertical: theme.spacing.sm,
+  },
+  compactInput: {
+    fontSize: 14,
+    paddingVertical: 6,
   },
 });

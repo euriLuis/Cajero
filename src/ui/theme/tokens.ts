@@ -1,9 +1,11 @@
 export const tokens = {
   colors: {
+    bg: '#EEF1F6',
     background: '#EEF1F6',
     surface: '#F6F8FC',
     surface2: '#EEF1F6',
     text: '#0E1220',
+    muted: '#5B6478',
     textMuted: '#5B6478',
     border: 'rgba(20, 24, 35, 0.06)',
     accentGlow: '#FFB86B',
