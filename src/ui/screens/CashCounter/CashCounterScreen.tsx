@@ -13,7 +13,7 @@ import {
     Modal,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { AppScreen, AppButton, SoftCard, SoftButton, SoftInput } from '../../components';
+import { AppScreen, AppButton, SoftCard, SoftButton, SoftInput, useSoftNotice } from '../../components';
 import { theme, radius } from '../../theme';
 import { formatCents } from '../../../utils/money';
 import { cashRepo, salesRepo, withdrawalsRepo } from '../../../data/repositories';
@@ -185,6 +185,7 @@ export const CashCounterScreen = () => {
 
     // Modal states
     const [selectedMovement, setSelectedMovement] = useState<CashMovement | null>(null);
+    const { showNotice } = useSoftNotice();
     const [detailModalVisible, setDetailModalVisible] = useState(false);
 
     const inputRefs = useRef<Record<number, TextInput | null>>({});
@@ -223,7 +224,7 @@ export const CashCounterScreen = () => {
             initialLoadDone.current = true;
         } catch (error) {
             console.error('Error loading cash data:', error);
-            Alert.alert('Error', 'No se pudieron cargar los datos de caja');
+            showNotice({ title: 'Error', message: 'No se pudieron cargar los datos de caja', type: 'error' });
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -305,7 +306,7 @@ export const CashCounterScreen = () => {
 
     const handleApplyMovement = useCallback(async (type: 'IN' | 'OUT') => {
         if (totalContadoCents === 0) {
-            Alert.alert('Conteo vacío', 'Ingresa cantidades antes de aplicar un movimiento.');
+            showNotice({ title: 'Conteo vacío', message: 'Ingresa cantidades antes de aplicar un movimiento.', type: 'info' });
             return;
         }
 
@@ -335,7 +336,7 @@ export const CashCounterScreen = () => {
 
                             await loadData(true);
                         } catch (error: any) {
-                            Alert.alert('Error', error.message);
+                            showNotice({ title: 'Error', message: error.message, type: 'error' });
                         }
                     }
                 }
@@ -358,7 +359,7 @@ export const CashCounterScreen = () => {
                 setDeletingId(null);
                 await loadData(true);
             } catch (error: any) {
-                Alert.alert('Error', error.message || 'No se pudo eliminar el movimiento');
+                showNotice({ title: 'Error', message: error.message || 'No se pudo eliminar el movimiento', type: 'error' });
                 setDeletingId(null);
             }
         }, 4000);

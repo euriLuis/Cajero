@@ -4,7 +4,7 @@ import { productsRepo } from '../../../data/repositories';
 import { Product } from '../../../domain/models/Product';
 import { formatCents, parseMoneyToCents } from '../../../utils/money';
 import { theme } from '../../theme';
-import { SoftCard, SoftSearchInput, SoftButton, SoftInput } from '../../components';
+import { SoftCard, SoftSearchInput, SoftButton, SoftInput, useSoftNotice } from '../../components';
 
 const ProductRow = memo(({ product, onPress }: { product: Product; onPress: (p: Product) => void }) => (
     <TouchableOpacity onPress={() => onPress(product)} activeOpacity={0.9}>
@@ -24,6 +24,7 @@ export const ProductsScreen = () => {
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
     const [formName, setFormName] = useState('');
     const [formPrice, setFormPrice] = useState('');
+    const { showNotice } = useSoftNotice();
 
     const loadProducts = useCallback(async (searchTerm: string) => {
         setLoading(true);
@@ -31,7 +32,7 @@ export const ProductsScreen = () => {
             const list = await productsRepo.listActiveProducts(searchTerm);
             setProducts(list);
         } catch {
-            Alert.alert('Error', 'No se pudieron cargar los productos');
+            showNotice({ title: 'Error', message: 'No se pudieron cargar los productos', type: 'error' });
         } finally {
             setLoading(false);
         }
@@ -59,7 +60,10 @@ export const ProductsScreen = () => {
     }, []);
 
     const handleSave = useCallback(async () => {
-        if (!formName.trim()) return Alert.alert('Error', 'El nombre es requerido');
+        if (!formName.trim()) {
+            showNotice({ title: 'Error', message: 'El nombre es requerido', type: 'error' });
+            return;
+        }
         const priceCents = parseMoneyToCents(formPrice);
 
         try {
@@ -69,7 +73,7 @@ export const ProductsScreen = () => {
             setModalVisible(false);
             loadProducts(search);
         } catch {
-            Alert.alert('Error', 'No se pudo guardar el producto');
+            showNotice({ title: 'Error', message: 'No se pudo guardar el producto', type: 'error' });
         }
     }, [editingProduct, formName, formPrice, search, loadProducts]);
 
@@ -86,7 +90,7 @@ export const ProductsScreen = () => {
                         setModalVisible(false);
                         loadProducts(search);
                     } catch {
-                        Alert.alert('Error', 'No se pudo desactivar');
+                        showNotice({ title: 'Error', message: 'No se pudo desactivar', type: 'error' });
                     }
                 },
             },
@@ -113,9 +117,6 @@ export const ProductsScreen = () => {
 
     return (
         <View style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.title}>Productos</Text>
-            </View>
 
             <FlatList
                 data={products}
@@ -155,8 +156,6 @@ export const ProductsScreen = () => {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: theme.colors.background },
-    header: { paddingTop: 40, paddingHorizontal: theme.spacing.base, paddingBottom: theme.spacing.sm },
-    title: { ...theme.typography.title, color: theme.colors.text },
     headerContainer: { paddingHorizontal: theme.spacing.base, paddingBottom: theme.spacing.sm },
     topBar: { flexDirection: 'row', gap: theme.spacing.sm, alignItems: 'center' },
     searchInput: { flexBasis: '50%', flexGrow: 0, flexShrink: 1 },

@@ -5,3 +5,5 @@ export { SoftButton } from './SoftButton';
 export { SoftIconButton } from './SoftIconButton';
 export { SoftSegmentedControl } from './SoftSegmentedControl';
 export { SoftTabBar } from './SoftTabBar';
+
+export { SoftNoticeProvider, useSoftNotice } from './SoftNoticeProvider';

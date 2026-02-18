@@ -15,6 +15,12 @@ export const AppNavigator = () => {
             initialRouteName="Venta"
             screenOptions={{
                 headerShown: false,
+                tabBarStyle: {
+                    position: 'absolute',
+                    backgroundColor: 'transparent',
+                    borderTopWidth: 0,
+                    elevation: 0,
+                },
             }}
             tabBar={(props) => <SoftTabBar {...props} />}
         >

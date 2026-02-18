@@ -7,7 +7,7 @@ import { getDayRangeMs, getWeekRangeMs, formatDateShort, formatTimeNoSeconds } f
 import { theme } from '../../theme';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
-import { SoftButton, SoftInput } from '../../components';
+import { SoftButton, SoftInput, useSoftNotice } from '../../components';
 
 interface ProductSold {
     productName: string;
@@ -35,6 +35,12 @@ export const SummaryScreen = () => {
     // Soft Delete
     const [pendingDelete, setPendingDelete] = useState<{ id: number; withdrawal: Withdrawal } | null>(null);
     const pendingDeleteTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const { showNotice } = useSoftNotice();
+
+    const calcSalaryForRange = useCallback(async (startMs: number, endMs: number) => {
+        const sales = await salesRepo.sumSalesByRange(startMs, endMs);
+        return Math.round(sales * 0.005);
+    }, []);
 
     const calcSalaryForRange = useCallback(async (startMs: number, endMs: number) => {
         const sales = await salesRepo.sumSalesByRange(startMs, endMs);
@@ -63,7 +69,7 @@ export const SummaryScreen = () => {
             setTotalDailySalary(salaryDaily);
             setProductsSold(productsSoldList);
         } catch (e) {
-            Alert.alert('Error', 'No se pudieron cargar los datos de la caja');
+            showNotice({ title: 'Error', message: 'No se pudieron cargar los datos de la caja', type: 'error' });
         } finally {
             setLoading(false);
         }
@@ -166,7 +172,7 @@ export const SummaryScreen = () => {
             setAmountError(null);
             loadData();
         } catch (e) {
-            Alert.alert('Error', 'No se pudo registrar la extracción');
+            showNotice({ title: 'Error', message: 'No se pudo registrar la extracción', type: 'error' });
         }
     };
 
@@ -185,7 +191,7 @@ export const SummaryScreen = () => {
                 setPendingDelete(null);
                 loadData();
             } catch (e) {
-                Alert.alert('Error', 'No se pudo eliminar la extracción');
+                showNotice({ title: 'Error', message: 'No se pudo eliminar la extracción', type: 'error' });
                 setPendingDelete(null);
             }
         }, 5000);
@@ -232,31 +238,35 @@ export const SummaryScreen = () => {
                 />
             )}
 
-            {/* Summary Cards - Grid - Row 1 */}
+            {/* Summary Cards - Row 1 */}
             <View style={styles.summaryContainer}>
-                <View style={[styles.summaryCard, { borderColor: theme.colors.primary }]}>
+                <View style={[styles.summaryCard, styles.summaryCardPrimary]}>
                     <Text style={styles.summaryLabel}>Facturado</Text>
-                    <Text style={[styles.summaryValue, { color: theme.colors.primary }]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(totalSales)}</Text>
+                    <Text style={[styles.summaryValue, styles.summaryValuePrimary]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(totalSales)}</Text>
                 </View>
-                <View style={[styles.summaryCard, { borderColor: '#EF4444' }]}>
+                <View style={[styles.summaryCard, styles.summaryCardDanger]}>
                     <Text style={styles.summaryLabel}>Extracciones</Text>
-                    <Text style={[styles.summaryValue, { color: '#EF4444' }]} numberOfLines={1} adjustsFontSizeToFit>-{formatCents(totalWithdrawals)}</Text>
+                    <Text style={[styles.summaryValue, styles.summaryValueDanger]} numberOfLines={1} adjustsFontSizeToFit>-{formatCents(totalWithdrawals)}</Text>
                 </View>
-                <View style={[styles.summaryCard, { borderColor: '#10B981', backgroundColor: '#F0FDF4' }]}>
+                <View style={[styles.summaryCard, styles.summaryCardSuccess]}>
                     <Text style={styles.summaryLabel}>Caja</Text>
-                    <Text style={[styles.summaryValue, { color: '#10B981' }]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(totalSales - totalWithdrawals)}</Text>
+                    <Text style={[styles.summaryValue, styles.summaryValueSuccess]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(totalSales - totalWithdrawals)}</Text>
                 </View>
             </View>
 
-            {/* Summary Cards - Grid - Row 2 */}
+            {/* Summary Cards - Row 2 */}
             <View style={styles.summaryContainer}>
-                <View style={[styles.summaryCard, { borderColor: '#8B5CF6' }]}>
-                    <Text style={styles.summaryLabel}>Total Semanal</Text>
-                    <Text style={[styles.summaryValue, { color: '#8B5CF6' }]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(totalWeeklySales)}</Text>
+                <View style={[styles.summaryCard, styles.summaryCardInfo]}>
+                    <Text style={styles.summaryLabel}>Salario diario</Text>
+                    <Text style={[styles.summaryValue, styles.summaryValueInfo]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(totalDailySalary)}</Text>
                 </View>
-                <View style={[styles.summaryCard, { borderColor: '#F59E0B', backgroundColor: '#FFFBEB' }]}>
+                <View style={[styles.summaryCard, styles.summaryCardWeekly]}>
+                    <Text style={styles.summaryLabel}>Total semanal</Text>
+                    <Text style={[styles.summaryValue, styles.summaryValueWeekly]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(totalWeeklySales)}</Text>
+                </View>
+                <View style={[styles.summaryCard, styles.summaryCardSalary]}>
                     <Text style={styles.summaryLabel}>Salario semanal</Text>
-                    <Text style={[styles.summaryValue, { color: '#F59E0B' }]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(Math.round(totalWeeklySales * 0.005))}</Text>
+                    <Text style={[styles.summaryValue, styles.summaryValueSalary]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(Math.round(totalWeeklySales * 0.005))}</Text>
                 </View>
             </View>
 
@@ -310,9 +320,6 @@ export const SummaryScreen = () => {
 
     return (
         <View style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.title}>Caja</Text>
-            </View>
 
             {/* Withdrawal Form */}
             <View style={styles.formCard}>
@@ -378,16 +385,6 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: theme.colors.background,
     },
-    header: {
-        paddingTop: theme.spacing.lg + 20,
-        paddingBottom: theme.spacing.md,
-        paddingHorizontal: theme.spacing.md,
-        backgroundColor: theme.colors.background,
-    },
-    title: {
-        ...theme.typography.title,
-        color: theme.colors.text,
-    },
     card: {
         flex: 1,
         backgroundColor: theme.colors.surface,
@@ -437,7 +434,8 @@ const styles = StyleSheet.create({
     },
     summaryContainer: {
         paddingHorizontal: theme.spacing.md,
-        paddingVertical: theme.spacing.md,
+        paddingTop: theme.spacing.sm,
+        paddingBottom: theme.spacing.xs,
         gap: theme.spacing.sm,
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -445,33 +443,46 @@ const styles = StyleSheet.create({
     },
     summaryCard: {
         flex: 1,
+        minHeight: 88,
         paddingVertical: theme.spacing.sm,
-        paddingHorizontal: theme.spacing.md,
-        borderRadius: theme.spacing.md,
-        borderWidth: 2,
+        paddingHorizontal: theme.spacing.sm,
+        borderRadius: theme.radius.control,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
         backgroundColor: theme.colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.08,
-        shadowRadius: 2,
-        elevation: 1,
+        ...theme.shadows.softControlShadow,
     },
+    summaryCardPrimary: { borderColor: 'rgba(14,18,32,0.16)' },
+    summaryCardDanger: { borderColor: 'rgba(239,68,68,0.24)' },
+    summaryCardSuccess: { borderColor: 'rgba(16,185,129,0.22)' },
+    summaryCardInfo: { borderColor: 'rgba(6,182,212,0.22)' },
+    summaryCardWeekly: { borderColor: 'rgba(139,92,246,0.22)' },
+    summaryCardSalary: { borderColor: 'rgba(245,158,11,0.24)' },
     summaryLabel: {
         ...theme.typography.caption,
-        fontWeight: '600',
-        color: theme.colors.textSecondary,
+        fontWeight: '700',
+        color: theme.colors.mutedText,
         marginBottom: theme.spacing.xs,
         textAlign: 'center',
+        textTransform: 'uppercase',
+        letterSpacing: 0.3,
+        fontSize: 11,
     },
     summaryValue: {
-        ...theme.typography.title,
+        ...theme.typography.subtitle,
         fontSize: 14,
-        fontWeight: 'bold',
+        fontWeight: '700',
         textAlign: 'center',
         width: '100%',
     },
+    summaryValuePrimary: { color: theme.colors.primary },
+    summaryValueDanger: { color: '#D14343' },
+    summaryValueSuccess: { color: '#18956A' },
+    summaryValueInfo: { color: '#0F8FA5' },
+    summaryValueWeekly: { color: '#7E4CC7' },
+    summaryValueSalary: { color: '#C98514' },
     formCard: {
         margin: theme.spacing.md,
         padding: theme.spacing.md,

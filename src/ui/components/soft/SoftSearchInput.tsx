@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleProp, TextInputProps, ViewStyle } from 'react-native';
+import { StyleProp, StyleSheet, TextInputProps, ViewStyle } from 'react-native';
 import { SoftInput } from './SoftInput';
 
 interface SoftSearchInputProps extends TextInputProps {
@@ -9,7 +9,8 @@ interface SoftSearchInputProps extends TextInputProps {
 export const SoftSearchInput: React.FC<SoftSearchInputProps> = ({ containerStyle, ...props }) => {
   return (
     <SoftInput
-      leftIcon="⌕"
+      leftIcon="🔍"
+      iconStyle={styles.searchIcon}
       returnKeyType="search"
       autoCorrect={false}
       autoCapitalize="none"
@@ -19,3 +20,12 @@ export const SoftSearchInput: React.FC<SoftSearchInputProps> = ({ containerStyle
     />
   );
 };
+
+const styles = StyleSheet.create({
+  searchIcon: {
+    fontSize: 20,
+    lineHeight: 20,
+    marginRight: 10,
+    marginTop: -1,
+  },
+});

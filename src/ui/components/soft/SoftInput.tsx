@@ -8,6 +8,7 @@ interface SoftInputProps extends TextInputProps {
   size?: 'normal' | 'compact';
   containerStyle?: StyleProp<ViewStyle>;
   inputStyle?: StyleProp<TextStyle>;
+  iconStyle?: StyleProp<TextStyle>;
 }
 
 export const SoftInput = React.forwardRef<TextInput, SoftInputProps>(({
@@ -16,17 +17,18 @@ export const SoftInput = React.forwardRef<TextInput, SoftInputProps>(({
   size = 'normal',
   containerStyle,
   inputStyle,
+  iconStyle,
   ...props
 }, ref) => (
   <View style={[styles.container, size === 'compact' && styles.compactContainer, containerStyle]}>
-    {!!leftIcon && <Text style={styles.icon}>{leftIcon}</Text>}
+    {!!leftIcon && <Text style={[styles.icon, size === 'compact' && styles.compactIcon, iconStyle]}>{leftIcon}</Text>}
     <TextInput
       ref={ref}
       style={[styles.input, size === 'compact' && styles.compactInput, inputStyle]}
       placeholderTextColor={theme.colors.textMuted}
       {...props}
     />
-    {!!rightIcon && <Text style={styles.icon}>{rightIcon}</Text>}
+    {!!rightIcon && <Text style={[styles.icon, size === 'compact' && styles.compactIcon, iconStyle]}>{rightIcon}</Text>}
   </View>
 ));
 
@@ -49,8 +51,16 @@ const styles = StyleSheet.create({
   },
   icon: {
     marginHorizontal: 4,
+    marginRight: 8,
     color: theme.colors.textMuted,
-    fontSize: 14,
+    fontSize: 18,
+    lineHeight: 18,
+    textAlignVertical: 'center',
+  },
+  compactIcon: {
+    fontSize: 16,
+    lineHeight: 16,
+    marginRight: 6,
   },
   input: {
     flex: 1,
