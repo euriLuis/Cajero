@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, TextInput, Modal } from 'react-native';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, Animated, Easing } from 'react-native';
 import { productsRepo, salesRepo } from '../../../data/repositories';
 import { Product } from '../../../domain/models/Product';
 import { formatCents } from '../../../utils/money';
 import { theme } from '../../theme';
+import { SoftInput, useSoftNotice } from '../../components';
 
 interface CartItem {
     productId: number;
@@ -28,6 +29,7 @@ export const SaleScreen = () => {
     // Product selector
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [selectorModalVisible, setSelectorModalVisible] = useState(false);
+    const [selectorModalMounted, setSelectorModalMounted] = useState(false);
 
     // Quantity
     const [quantity, setQuantity] = useState('1');
@@ -36,6 +38,57 @@ export const SaleScreen = () => {
     // Cart
     const [cart, setCart] = useState<CartItem[]>([]);
     const [isSaving, setIsSaving] = useState(false);
+    const { showNotice } = useSoftNotice();
+
+    const overlayOpacity = useRef(new Animated.Value(0)).current;
+    const modalTranslateY = useRef(new Animated.Value(380)).current;
+
+    useEffect(() => {
+        if (selectorModalVisible) {
+            setSelectorModalMounted(true);
+            overlayOpacity.setValue(0);
+            modalTranslateY.setValue(380);
+
+            Animated.parallel([
+                Animated.timing(overlayOpacity, {
+                    toValue: 1,
+                    duration: 130,
+                    easing: Easing.out(Easing.quad),
+                    useNativeDriver: true,
+                }),
+                Animated.timing(modalTranslateY, {
+                    toValue: 0,
+                    duration: 230,
+                    easing: Easing.out(Easing.cubic),
+                    useNativeDriver: true,
+                }),
+            ]).start();
+            return;
+        }
+
+        if (!selectorModalMounted) {
+            return;
+        }
+
+        Animated.parallel([
+            Animated.timing(overlayOpacity, {
+                toValue: 0,
+                duration: 90,
+                easing: Easing.in(Easing.quad),
+                useNativeDriver: true,
+            }),
+            Animated.timing(modalTranslateY, {
+                toValue: 380,
+                duration: 180,
+                easing: Easing.in(Easing.cubic),
+                useNativeDriver: true,
+            }),
+        ]).start(({ finished }) => {
+            if (finished) {
+                setSelectorModalMounted(false);
+            }
+        });
+    }, [selectorModalVisible, selectorModalMounted, overlayOpacity, modalTranslateY]);
 
     const loadProducts = useCallback(async (isRefresh = false) => {
         if (isRefresh) setRefreshing(true);
@@ -44,7 +97,7 @@ export const SaleScreen = () => {
             const list = await productsRepo.listActiveProducts();
             setProducts(list);
         } catch (e) {
-            Alert.alert('Error', 'Error al cargar productos');
+            showNotice({ title: 'Error', message: 'Error al cargar productos', type: 'error' });
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -91,13 +144,13 @@ export const SaleScreen = () => {
 
     const handleAddToCart = () => {
         if (!selectedProduct) {
-            Alert.alert('Error', 'Selecciona un producto');
+            showNotice({ title: 'Error', message: 'Selecciona un producto', type: 'error' });
             return;
         }
 
         const validation = validateQty(quantity);
         if (!validation.valid) {
-            setQtyError(validation.error);
+            setQtyError(validation.error ?? null);
             return;
         }
 
@@ -144,9 +197,14 @@ export const SaleScreen = () => {
 
     const totalCents = cart.reduce((sum, item) => sum + (item.unitPriceSnapshotCents * item.qty), 0);
 
+
+    useEffect(() => {
+        salesRepo.setCurrentSaleDraftTotal(totalCents);
+    }, [totalCents]);
+
     const handleConfirmSale = async () => {
         if (cart.length === 0) {
-            Alert.alert('Carrito vacío', 'Añade productos antes de confirmar la venta');
+            showNotice({ title: 'Carrito vacío', message: 'Añade productos antes de confirmar la venta', type: 'info' });
             return;
         }
 
@@ -165,11 +223,11 @@ export const SaleScreen = () => {
                 items: cart,
                 createdAtMs: createdAt.getTime()
             });
-            Alert.alert('Venta registrada', 'La venta se guardó correctamente');
+            showNotice({ title: 'Venta registrada', message: 'La venta se guardó correctamente', type: 'success' });
             setCart([]);
             setSelectedDate(new Date());
         } catch (e) {
-            Alert.alert('Error', 'No se pudo registrar la venta');
+            showNotice({ title: 'Error', message: 'No se pudo registrar la venta', type: 'error' });
             // NO limpiar carrito en caso de error
         } finally {
             setIsSaving(false);
@@ -220,9 +278,6 @@ export const SaleScreen = () => {
 
     return (
         <View style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.title}>Venta</Text>
-            </View>
 
             <View style={styles.card}>
                 {/* Date Selector */}
@@ -258,8 +313,9 @@ export const SaleScreen = () => {
                         <Text style={styles.dropdownArrow}>▼</Text>
                     </TouchableOpacity>
 
-                    <TextInput
-                        style={styles.qtyInput}
+                    <SoftInput
+                        containerStyle={styles.qtyInput}
+                        size="compact"
                         value={quantity}
                         onChangeText={handleQuantityChange}
                         keyboardType="numeric"
@@ -317,13 +373,13 @@ export const SaleScreen = () => {
 
             {/* Product Selector Modal */}
             <Modal
-                visible={selectorModalVisible}
+                visible={selectorModalMounted}
                 transparent
-                animationType="slide"
+                animationType="none"
                 onRequestClose={() => setSelectorModalVisible(false)}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
+                <Animated.View style={[styles.modalOverlay, { opacity: overlayOpacity }]}>
+                    <Animated.View style={[styles.modalContent, { transform: [{ translateY: modalTranslateY }] }]}>
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>Seleccionar Producto</Text>
                             <TouchableOpacity onPress={() => setSelectorModalVisible(false)}>
@@ -343,8 +399,8 @@ export const SaleScreen = () => {
                             refreshing={refreshing}
                             onRefresh={() => loadProducts(true)}
                         />
-                    </View>
-                </View>
+                    </Animated.View>
+                </Animated.View>
             </Modal>
         </View>
     );
@@ -356,16 +412,6 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: theme.colors.background,
-    },
-    header: {
-        paddingTop: theme.spacing.lg + 20,
-        paddingBottom: theme.spacing.md,
-        paddingHorizontal: theme.spacing.md,
-        backgroundColor: theme.colors.background,
-    },
-    title: {
-        ...theme.typography.title,
-        color: theme.colors.text,
     },
     card: {
         flex: 1,
@@ -669,21 +715,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: theme.spacing.sm,
     },
     modalSearch: {
-        backgroundColor: theme.colors.surface,
-        paddingVertical: theme.spacing.md,
-        paddingHorizontal: theme.spacing.base,
         marginHorizontal: theme.spacing.md,
         marginVertical: theme.spacing.md,
-        borderRadius: theme.spacing.md,
-        borderWidth: 1.5,
-        borderColor: theme.colors.border,
-        fontSize: 15,
-        color: theme.colors.text,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.08,
-        shadowRadius: 2,
-        elevation: 1,
     },
     modalList: {
         maxHeight: 400,
