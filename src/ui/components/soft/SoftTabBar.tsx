@@ -78,7 +78,7 @@ export const SoftTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, na
 
           const shiftX = activeIndexAnim.interpolate({
             inputRange: [index - 1, index, index + 1],
-            outputRange: [6, 0, -6],
+            outputRange: [4, 0, -4],
             extrapolate: 'clamp',
           });
 
@@ -88,8 +88,8 @@ export const SoftTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, na
             extrapolate: 'clamp',
           });
 
-          const scale = selectedProgress.interpolate({ inputRange: [0, 1], outputRange: [0.98, 1.14] });
-          const rise = selectedProgress.interpolate({ inputRange: [0, 1], outputRange: [0, -5] });
+          const scale = selectedProgress.interpolate({ inputRange: [0, 1], outputRange: [0.99, 1.09] });
+          const rise = selectedProgress.interpolate({ inputRange: [0, 1], outputRange: [0, -2] });
 
           return (
             <TouchableOpacity
@@ -149,17 +149,17 @@ const styles = StyleSheet.create({
   tab: {
     flex: 1,
     borderRadius: theme.radius.control,
-    minHeight: 56,
+    minHeight: 54,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2,
   },
   tabInner: {
-    minHeight: 52,
+    minHeight: 50,
     minWidth: 54,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,
+    gap: 1,
   },
   label: {
     fontSize: 11,

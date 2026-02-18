@@ -8,6 +8,7 @@ import { getDayRangeMs, formatDateShort, formatTimeNoSeconds, formatDateTimeWith
 import { theme } from '../../theme';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SoftInput, useSoftNotice } from '../../components';
 
 // 2) Optimized Row Components
@@ -146,6 +147,7 @@ const SaleDetailItemRow = memo(({
 });
 
 export const HistoryScreen = () => {
+    const insets = useSafeAreaInsets();
     const [sales, setSales] = useState<Sale[]>([]);
     const [loading, setLoading] = useState(false);
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -432,7 +434,7 @@ export const HistoryScreen = () => {
     ), [currentDate, handleQuickDate, onPickerChange, showPicker]);
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { paddingTop: Math.max(insets.top, 10) + 4 }]}>
 
             <View style={styles.card}>
                 <FlatList
@@ -531,7 +533,7 @@ export const HistoryScreen = () => {
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: theme.colors.background },
+    container: { flex: 1, backgroundColor: theme.colors.background, paddingTop: 10 },
     card: { flex: 1, backgroundColor: '#FFF', marginHorizontal: 15, marginBottom: 15, borderRadius: 10, borderWidth: 1, borderColor: '#EEE', overflow: 'hidden' },
     filterSection: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#EEE' },
     buttonRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },

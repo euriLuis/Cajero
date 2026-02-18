@@ -7,6 +7,7 @@ import { getDayRangeMs, getWeekRangeMs, formatDateShort, formatTimeNoSeconds } f
 import { theme } from '../../theme';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SoftButton, SoftInput, useSoftNotice } from '../../components';
 
 interface ProductSold {
@@ -15,6 +16,7 @@ interface ProductSold {
 }
 
 export const SummaryScreen = () => {
+    const insets = useSafeAreaInsets();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [showDatePicker, setShowDatePicker] = useState(false);
 
@@ -302,7 +304,7 @@ salesRepo.sumSalesByRange(startMs, endMs).then((sales) => Math.round(sales * 0.0
     );
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { paddingTop: Math.max(insets.top, 10) + 4 }]}>
 
             {/* Withdrawal Form */}
             <View style={styles.formCard}>
@@ -367,6 +369,7 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: theme.colors.background,
+        paddingTop: 0,
     },
     card: {
         flex: 1,

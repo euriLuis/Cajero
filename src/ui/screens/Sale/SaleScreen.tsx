@@ -14,6 +14,7 @@ interface CartItem {
 }
 
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { formatDateShort } from '../../../utils/dates';
 
@@ -38,6 +39,7 @@ export const SaleScreen = () => {
     // Cart
     const [cart, setCart] = useState<CartItem[]>([]);
     const [isSaving, setIsSaving] = useState(false);
+    const insets = useSafeAreaInsets();
     const { showNotice } = useSoftNotice();
 
     const overlayOpacity = useRef(new Animated.Value(0)).current;
@@ -277,7 +279,7 @@ export const SaleScreen = () => {
     );
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { paddingTop: Math.max(insets.top, 10) + 4 }]}>
 
             <View style={styles.card}>
                 {/* Date Selector */}
@@ -357,7 +359,7 @@ export const SaleScreen = () => {
             </View>
 
             {/* Fixed Bottom Bar */}
-            <View style={styles.bottomBar}>
+            <View style={[styles.bottomBar, { bottom: TAB_BAR_CLEARANCE + Math.max(insets.bottom, 10) }]}>
                 <View style={styles.totalSection}>
                     <Text style={styles.totalLabel}>Total:</Text>
                     <Text style={styles.totalValue}>{formatCents(totalCents)}</Text>
@@ -407,11 +409,13 @@ export const SaleScreen = () => {
 };
 
 const BOTTOM_BAR_HEIGHT = 70;
+const TAB_BAR_CLEARANCE = 84;
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: theme.colors.background,
+        paddingTop: 0,
     },
     card: {
         flex: 1,
@@ -422,7 +426,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: theme.colors.border,
         overflow: 'hidden',
-        paddingBottom: BOTTOM_BAR_HEIGHT + 10,
+        paddingBottom: BOTTOM_BAR_HEIGHT + TAB_BAR_CLEARANCE + 10,
     },
     dateSelector: {
         flexDirection: 'row',
@@ -633,7 +637,7 @@ const styles = StyleSheet.create({
     },
     bottomBar: {
         position: 'absolute',
-        bottom: 0,
+        bottom: TAB_BAR_CLEARANCE,
         left: 0,
         right: 0,
         height: BOTTOM_BAR_HEIGHT,

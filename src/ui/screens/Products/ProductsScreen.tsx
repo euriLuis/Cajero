@@ -5,6 +5,7 @@ import { Product } from '../../../domain/models/Product';
 import { formatCents, parseMoneyToCents } from '../../../utils/money';
 import { theme } from '../../theme';
 import { SoftCard, SoftSearchInput, SoftButton, SoftInput, useSoftNotice } from '../../components';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const ProductRow = memo(({ product, onPress }: { product: Product; onPress: (p: Product) => void }) => (
     <TouchableOpacity onPress={() => onPress(product)} activeOpacity={0.9}>
@@ -16,6 +17,7 @@ const ProductRow = memo(({ product, onPress }: { product: Product; onPress: (p: 
 ));
 
 export const ProductsScreen = () => {
+    const insets = useSafeAreaInsets();
     const [products, setProducts] = useState<Product[]>([]);
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(false);
@@ -116,7 +118,7 @@ export const ProductsScreen = () => {
     ), [handleOpenEdit]);
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { paddingTop: Math.max(insets.top, 10) + 4 }]}>
 
             <FlatList
                 data={products}
@@ -155,7 +157,7 @@ export const ProductsScreen = () => {
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: theme.colors.background },
+    container: { flex: 1, backgroundColor: theme.colors.background, paddingTop: 10 },
     headerContainer: { paddingHorizontal: theme.spacing.base, paddingBottom: theme.spacing.sm },
     topBar: { flexDirection: 'row', gap: theme.spacing.sm, alignItems: 'center' },
     searchInput: { flexBasis: '50%', flexGrow: 0, flexShrink: 1 },
