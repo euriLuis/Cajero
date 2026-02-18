@@ -42,6 +42,11 @@ export const SummaryScreen = () => {
         return Math.round(sales * 0.005);
     }, []);
 
+    const calcSalaryForRange = useCallback(async (startMs: number, endMs: number) => {
+        const sales = await salesRepo.sumSalesByRange(startMs, endMs);
+        return Math.round(sales * 0.005);
+    }, []);
+
     const loadData = useCallback(async () => {
         setLoading(true);
         try {
@@ -262,6 +267,13 @@ export const SummaryScreen = () => {
                 <View style={[styles.summaryCard, styles.summaryCardSalary]}>
                     <Text style={styles.summaryLabel}>Salario semanal</Text>
                     <Text style={[styles.summaryValue, styles.summaryValueSalary]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(Math.round(totalWeeklySales * 0.005))}</Text>
+                </View>
+            </View>
+
+            <View style={styles.summaryContainer}>
+                <View style={[styles.summaryCard, { borderColor: '#06B6D4' }]}>
+                    <Text style={styles.summaryLabel}>Salario diario</Text>
+                    <Text style={[styles.summaryValue, { color: '#06B6D4' }]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(totalDailySalary)}</Text>
                 </View>
             </View>
 
