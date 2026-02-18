@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, memo, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, Alert } from 'react-native';
 import { salesRepo } from '../../../data/repositories';
 import { Sale } from '../../../domain/models/Sale';
 import { SaleItem } from '../../../domain/models/SaleItem';
@@ -8,6 +8,8 @@ import { getDayRangeMs, formatDateShort, formatTimeNoSeconds, formatDateTimeWith
 import { theme } from '../../theme';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SoftInput, useSoftNotice } from '../../components';
 
 // 2) Optimized Row Components
 const SaleRow = memo(({
@@ -106,8 +108,9 @@ const SaleDetailItemRow = memo(({
                                         <TouchableOpacity style={styles.qtyBtn} onPress={() => onDecrement(item.id)}>
                                             <Text style={styles.qtyBtnText}>−</Text>
                                         </TouchableOpacity>
-                                        <TextInput
-                                            style={styles.editInput}
+                                        <SoftInput
+                                            containerStyle={styles.editInput}
+                                            size="compact"
                                             keyboardType="number-pad"
                                             value={draft.qty}
                                             onChangeText={(t) => onQtyChange(item.id, t)}
@@ -121,8 +124,9 @@ const SaleDetailItemRow = memo(({
 
                                 <View style={styles.editField}>
                                     <Text style={styles.editLabel}>Precio</Text>
-                                    <TextInput
-                                        style={[styles.editInput, !!error && styles.inputError]}
+                                    <SoftInput
+                                        containerStyle={[styles.editInput, !!error && styles.inputError]}
+                                        size="compact"
                                         keyboardType="decimal-pad"
                                         value={draft.price}
                                         onChangeText={(t) => onPriceChange(item.id, t)}
@@ -143,6 +147,7 @@ const SaleDetailItemRow = memo(({
 });
 
 export const HistoryScreen = () => {
+    const insets = useSafeAreaInsets();
     const [sales, setSales] = useState<Sale[]>([]);
     const [loading, setLoading] = useState(false);
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -160,6 +165,7 @@ export const HistoryScreen = () => {
 
     // Items summary
     const [itemsSummaryBySaleId, setItemsSummaryBySaleId] = useState<Record<number, string>>({});
+    const { showNotice } = useSoftNotice();
 
     const loadSales = useCallback(async () => {
         setLoading(true);
@@ -176,7 +182,7 @@ export const HistoryScreen = () => {
                 setItemsSummaryBySaleId({});
             }
         } catch (e) {
-            Alert.alert('Error', 'No se pudieron cargar las ventas');
+            showNotice({ title: 'Error', message: 'No se pudieron cargar las ventas', type: 'error' });
         } finally {
             setLoading(false);
         }
@@ -210,7 +216,7 @@ export const HistoryScreen = () => {
             setEditErrors(new Map());
         } else {
             if (saleItems.length === 0) {
-                Alert.alert('Error', 'No hay productos para editar');
+                showNotice({ title: 'Error', message: 'No hay productos para editar', type: 'error' });
                 return;
             }
             const initialDraft = new Map<number, { qty: string; price: string; deleted?: boolean }>();
@@ -312,7 +318,7 @@ export const HistoryScreen = () => {
 
     const handleSaveEdits = useCallback(async () => {
         if (editErrors.size > 0 || !selectedSale) {
-            Alert.alert('Error', 'Revisa los campos con errores');
+            showNotice({ title: 'Error', message: 'Revisa los campos con errores', type: 'error' });
             return;
         }
 
@@ -344,10 +350,10 @@ export const HistoryScreen = () => {
                 setIsEditMode(false);
                 setEditedItems(new Map());
                 await loadSales();
-                Alert.alert('Éxito', 'Cambios guardados');
+                showNotice({ title: 'Éxito', message: 'Cambios guardados', type: 'success' });
             }
         } catch (e) {
-            Alert.alert('Error', 'No se pudieron guardar los cambios');
+            showNotice({ title: 'Error', message: 'No se pudieron guardar los cambios', type: 'error' });
         }
     }, [editErrors, selectedSale, editedItems, saleItems, loadSales]);
 
@@ -363,9 +369,9 @@ export const HistoryScreen = () => {
                         await salesRepo.deleteSale(selectedSale.id);
                         setDetailModalVisible(false);
                         await loadSales();
-                        Alert.alert('Éxito', 'Venta eliminada');
+                        showNotice({ title: 'Éxito', message: 'Venta eliminada', type: 'success' });
                     } catch (e) {
-                        Alert.alert('Error', 'No se pudo eliminar');
+                        showNotice({ title: 'Error', message: 'No se pudo eliminar', type: 'error' });
                     }
                 }
             }
@@ -381,7 +387,7 @@ export const HistoryScreen = () => {
             setEditedItems(new Map());
             setDetailModalVisible(true);
         } catch (e) {
-            Alert.alert('Error', 'No se pudieron traer los detalles');
+            showNotice({ title: 'Error', message: 'No se pudieron traer los detalles', type: 'error' });
         }
     }, []);
 
@@ -428,10 +434,7 @@ export const HistoryScreen = () => {
     ), [currentDate, handleQuickDate, onPickerChange, showPicker]);
 
     return (
-        <View style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.title}>Historial</Text>
-            </View>
+        <View style={[styles.container, { paddingTop: Math.max(insets.top, 10) + 4 }]}>
 
             <View style={styles.card}>
                 <FlatList
@@ -530,9 +533,7 @@ export const HistoryScreen = () => {
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: theme.colors.background },
-    header: { paddingTop: 60, paddingBottom: 15, paddingHorizontal: 20 },
-    title: { fontSize: 28, fontWeight: 'bold', color: theme.colors.text },
+    container: { flex: 1, backgroundColor: theme.colors.background, paddingTop: 10 },
     card: { flex: 1, backgroundColor: '#FFF', marginHorizontal: 15, marginBottom: 15, borderRadius: 10, borderWidth: 1, borderColor: '#EEE', overflow: 'hidden' },
     filterSection: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#EEE' },
     buttonRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
@@ -589,11 +590,12 @@ const styles = StyleSheet.create({
     qtyControlRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
     qtyBtn: { width: 30, height: 30, backgroundColor: '#EEE', borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
     qtyBtnText: { fontSize: 20, fontWeight: 'bold' },
-    editInput: { borderPottomWidth: 1, borderBottomColor: theme.colors.primary, padding: 5, backgroundColor: '#F5F5F5', borderRadius: 4, textAlign: 'center' },
+    editInput: { borderBottomWidth: 1, borderBottomColor: theme.colors.primary, padding: 5, backgroundColor: '#F5F5F5', borderRadius: 4, textAlign: 'center' },
     editSubtotal: { marginTop: 10, alignItems: 'flex-end' },
     editSubtotalValue: { fontWeight: 'bold', color: theme.colors.primary, fontSize: 16 },
     actionButtonsContainer: { flexDirection: 'row', padding: 15, gap: 10, borderTopWidth: 1, borderTopColor: '#EEE' },
     actionBtn: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center' },
+    actionBtnDisabled: { opacity: 0.55 },
     saveBtn: { backgroundColor: theme.colors.primary },
     cancelBtn: { backgroundColor: '#EEE' },
     actionBtnText: { fontWeight: 'bold', color: '#FFF' },

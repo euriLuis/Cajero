@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { salesRepo, withdrawalsRepo } from '../../../data/repositories';
 import { Withdrawal } from '../../../domain/models/Withdrawal';
 import { formatCents, parseMoneyToCents } from '../../../utils/money';
@@ -7,6 +7,8 @@ import { getDayRangeMs, getWeekRangeMs, formatDateShort, formatTimeNoSeconds } f
 import { theme } from '../../theme';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SoftButton, SoftInput, useSoftNotice } from '../../components';
 
 interface ProductSold {
     productName: string;
@@ -14,6 +16,7 @@ interface ProductSold {
 }
 
 export const SummaryScreen = () => {
+    const insets = useSafeAreaInsets();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [showDatePicker, setShowDatePicker] = useState(false);
 
@@ -21,6 +24,7 @@ export const SummaryScreen = () => {
     const [totalSales, setTotalSales] = useState(0);
     const [totalWithdrawals, setTotalWithdrawals] = useState(0);
     const [totalWeeklySales, setTotalWeeklySales] = useState(0);
+    const [totalDailySalary, setTotalDailySalary] = useState(0);
     const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
     const [productsSold, setProductsSold] = useState<ProductSold[]>([]);
     const [loading, setLoading] = useState(false);
@@ -33,6 +37,7 @@ export const SummaryScreen = () => {
     // Soft Delete
     const [pendingDelete, setPendingDelete] = useState<{ id: number; withdrawal: Withdrawal } | null>(null);
     const pendingDeleteTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const { showNotice } = useSoftNotice();
 
     const loadData = useCallback(async () => {
         setLoading(true);
@@ -40,21 +45,23 @@ export const SummaryScreen = () => {
             const { startMs, endMs } = getDayRangeMs(currentDate);
             const { startMs: weekStartMs, endMs: weekEndMs } = getWeekRangeMs(currentDate);
 
-            const [salesSum, withSum, withList, weeklySalesSum, productsSoldList] = await Promise.all([
+            const [salesSum, withSum, withList, weeklySalesSum, productsSoldList, salaryDaily] = await Promise.all([
                 salesRepo.sumSalesByRange(startMs, endMs),
                 withdrawalsRepo.sumWithdrawalsByRange(startMs, endMs),
                 withdrawalsRepo.listWithdrawalsByRange(startMs, endMs),
                 salesRepo.sumSalesByRange(weekStartMs, weekEndMs),
-                salesRepo.getProductsSoldSummary(startMs, endMs)
+                salesRepo.getProductsSoldSummary(startMs, endMs),
+salesRepo.sumSalesByRange(startMs, endMs).then((sales) => Math.round(sales * 0.005)),
             ]);
 
             setTotalSales(salesSum);
             setTotalWithdrawals(withSum);
             setWithdrawals(withList);
             setTotalWeeklySales(weeklySalesSum);
+            setTotalDailySalary(salaryDaily);
             setProductsSold(productsSoldList);
         } catch (e) {
-            Alert.alert('Error', 'No se pudieron cargar los datos de la caja');
+            showNotice({ title: 'Error', message: 'No se pudieron cargar los datos de la caja', type: 'error' });
         } finally {
             setLoading(false);
         }
@@ -157,7 +164,7 @@ export const SummaryScreen = () => {
             setAmountError(null);
             loadData();
         } catch (e) {
-            Alert.alert('Error', 'No se pudo registrar la extracción');
+            showNotice({ title: 'Error', message: 'No se pudo registrar la extracción', type: 'error' });
         }
     };
 
@@ -176,7 +183,7 @@ export const SummaryScreen = () => {
                 setPendingDelete(null);
                 loadData();
             } catch (e) {
-                Alert.alert('Error', 'No se pudo eliminar la extracción');
+                showNotice({ title: 'Error', message: 'No se pudo eliminar la extracción', type: 'error' });
                 setPendingDelete(null);
             }
         }, 5000);
@@ -223,31 +230,35 @@ export const SummaryScreen = () => {
                 />
             )}
 
-            {/* Summary Cards - Grid - Row 1 */}
+            {/* Summary Cards - Row 1 */}
             <View style={styles.summaryContainer}>
-                <View style={[styles.summaryCard, { borderColor: theme.colors.primary }]}>
+                <View style={[styles.summaryCard, styles.summaryCardPrimary]}>
                     <Text style={styles.summaryLabel}>Facturado</Text>
-                    <Text style={[styles.summaryValue, { color: theme.colors.primary }]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(totalSales)}</Text>
+                    <Text style={[styles.summaryValue, styles.summaryValuePrimary]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(totalSales)}</Text>
                 </View>
-                <View style={[styles.summaryCard, { borderColor: '#EF4444' }]}>
+                <View style={[styles.summaryCard, styles.summaryCardDanger]}>
                     <Text style={styles.summaryLabel}>Extracciones</Text>
-                    <Text style={[styles.summaryValue, { color: '#EF4444' }]} numberOfLines={1} adjustsFontSizeToFit>-{formatCents(totalWithdrawals)}</Text>
+                    <Text style={[styles.summaryValue, styles.summaryValueDanger]} numberOfLines={1} adjustsFontSizeToFit>-{formatCents(totalWithdrawals)}</Text>
                 </View>
-                <View style={[styles.summaryCard, { borderColor: '#10B981', backgroundColor: '#F0FDF4' }]}>
+                <View style={[styles.summaryCard, styles.summaryCardSuccess]}>
                     <Text style={styles.summaryLabel}>Caja</Text>
-                    <Text style={[styles.summaryValue, { color: '#10B981' }]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(totalSales - totalWithdrawals)}</Text>
+                    <Text style={[styles.summaryValue, styles.summaryValueSuccess]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(totalSales - totalWithdrawals)}</Text>
                 </View>
             </View>
 
-            {/* Summary Cards - Grid - Row 2 */}
+            {/* Summary Cards - Row 2 */}
             <View style={styles.summaryContainer}>
-                <View style={[styles.summaryCard, { borderColor: '#8B5CF6' }]}>
-                    <Text style={styles.summaryLabel}>Total Semanal</Text>
-                    <Text style={[styles.summaryValue, { color: '#8B5CF6' }]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(totalWeeklySales)}</Text>
+                <View style={[styles.summaryCard, styles.summaryCardInfo]}>
+                    <Text style={styles.summaryLabel}>Salario diario</Text>
+                    <Text style={[styles.summaryValue, styles.summaryValueInfo]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(totalDailySalary)}</Text>
                 </View>
-                <View style={[styles.summaryCard, { borderColor: '#F59E0B', backgroundColor: '#FFFBEB' }]}>
-                    <Text style={styles.summaryLabel}>Salario</Text>
-                    <Text style={[styles.summaryValue, { color: '#F59E0B' }]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(Math.round(totalWeeklySales * 0.005))}</Text>
+                <View style={[styles.summaryCard, styles.summaryCardWeekly]}>
+                    <Text style={styles.summaryLabel}>Total semanal</Text>
+                    <Text style={[styles.summaryValue, styles.summaryValueWeekly]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(totalWeeklySales)}</Text>
+                </View>
+                <View style={[styles.summaryCard, styles.summaryCardSalary]}>
+                    <Text style={styles.summaryLabel}>Salario semanal</Text>
+                    <Text style={[styles.summaryValue, styles.summaryValueSalary]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(Math.round(totalWeeklySales * 0.005))}</Text>
                 </View>
             </View>
 
@@ -272,7 +283,7 @@ export const SummaryScreen = () => {
                 <Text style={styles.listTitle}>Movimientos de Caja</Text>
             </View>
         </View>
-    ), [currentDate, totalSales, totalWithdrawals, totalWeeklySales, showDatePicker, productsSold, handleQuickDate, handleDateChange]);
+    ), [currentDate, totalSales, totalWithdrawals, totalWeeklySales, totalDailySalary, showDatePicker, productsSold, handleQuickDate, handleDateChange]);
 
     const renderWithdrawalItem = ({ item }: { item: Withdrawal }) => (
         <TouchableOpacity
@@ -293,35 +304,31 @@ export const SummaryScreen = () => {
     );
 
     return (
-        <View style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.title}>Caja</Text>
-            </View>
+        <View style={[styles.container, { paddingTop: Math.max(insets.top, 10) + 4 }]}>
 
-            {/* Withdrawal Form - OUTSIDE FlatList to prevent keyboard issues */}
+            {/* Withdrawal Form */}
             <View style={styles.formCard}>
                 <Text style={styles.formTitle}>Registrar Extracción</Text>
                 <View style={styles.formRow}>
-                    <TextInput
-                        style={[styles.input, { flex: 1 }, amountError && styles.inputError]}
+                    <SoftInput
+                        containerStyle={[styles.input, { flex: 1 }, amountError && styles.inputError]}
                         placeholder="Monto (0.00)"
                         value={formAmount}
                         onChangeText={handleAmountChange}
                         keyboardType="numeric"
                     />
-                    <TextInput
-                        style={[styles.input, { flex: 2 }]}
+                    <SoftInput
+                        containerStyle={[styles.input, { flex: 2 }]}
                         placeholder="Motivo (opcional)"
                         value={formReason}
                         onChangeText={setFormReason}
                     />
-                    <TouchableOpacity 
-                        style={[styles.addBtn, amountError && styles.addBtnDisabled]} 
+                    <SoftButton
+                        label="OK"
                         onPress={handleAddWithdrawal}
                         disabled={!!amountError}
-                    >
-                        <Text style={styles.addBtnText}>OK</Text>
-                    </TouchableOpacity>
+                        style={[styles.addBtn, amountError && styles.addBtnDisabled]}
+                    />
                 </View>
                 {amountError && (
                     <Text style={styles.formErrorText}>{amountError}</Text>
@@ -362,16 +369,7 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: theme.colors.background,
-    },
-    header: {
-        paddingTop: theme.spacing.lg + 20,
-        paddingBottom: theme.spacing.md,
-        paddingHorizontal: theme.spacing.md,
-        backgroundColor: theme.colors.background,
-    },
-    title: {
-        ...theme.typography.title,
-        color: theme.colors.text,
+        paddingTop: 0,
     },
     card: {
         flex: 1,
@@ -422,7 +420,8 @@ const styles = StyleSheet.create({
     },
     summaryContainer: {
         paddingHorizontal: theme.spacing.md,
-        paddingVertical: theme.spacing.md,
+        paddingTop: theme.spacing.sm,
+        paddingBottom: theme.spacing.xs,
         gap: theme.spacing.sm,
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -430,33 +429,46 @@ const styles = StyleSheet.create({
     },
     summaryCard: {
         flex: 1,
+        minHeight: 88,
         paddingVertical: theme.spacing.sm,
-        paddingHorizontal: theme.spacing.md,
-        borderRadius: theme.spacing.md,
-        borderWidth: 2,
+        paddingHorizontal: theme.spacing.sm,
+        borderRadius: theme.radius.control,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
         backgroundColor: theme.colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.08,
-        shadowRadius: 2,
-        elevation: 1,
+        ...theme.shadows.softControlShadow,
     },
+    summaryCardPrimary: { borderColor: 'rgba(14,18,32,0.16)' },
+    summaryCardDanger: { borderColor: 'rgba(239,68,68,0.24)' },
+    summaryCardSuccess: { borderColor: 'rgba(16,185,129,0.22)' },
+    summaryCardInfo: { borderColor: 'rgba(6,182,212,0.22)' },
+    summaryCardWeekly: { borderColor: 'rgba(139,92,246,0.22)' },
+    summaryCardSalary: { borderColor: 'rgba(245,158,11,0.24)' },
     summaryLabel: {
         ...theme.typography.caption,
-        fontWeight: '600',
-        color: theme.colors.textSecondary,
+        fontWeight: '700',
+        color: theme.colors.mutedText,
         marginBottom: theme.spacing.xs,
         textAlign: 'center',
+        textTransform: 'uppercase',
+        letterSpacing: 0.3,
+        fontSize: 11,
     },
     summaryValue: {
-        ...theme.typography.title,
+        ...theme.typography.subtitle,
         fontSize: 14,
-        fontWeight: 'bold',
+        fontWeight: '700',
         textAlign: 'center',
         width: '100%',
     },
+    summaryValuePrimary: { color: theme.colors.primary },
+    summaryValueDanger: { color: '#D14343' },
+    summaryValueSuccess: { color: '#18956A' },
+    summaryValueInfo: { color: '#0F8FA5' },
+    summaryValueWeekly: { color: '#7E4CC7' },
+    summaryValueSalary: { color: '#C98514' },
     formCard: {
         margin: theme.spacing.md,
         padding: theme.spacing.md,
@@ -475,23 +487,11 @@ const styles = StyleSheet.create({
         gap: theme.spacing.xs,
     },
     input: {
-        backgroundColor: theme.colors.surface,
-        paddingHorizontal: theme.spacing.sm,
-        paddingVertical: 8,
-        borderRadius: 4,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        fontSize: 14,
+        minHeight: 46,
     },
     addBtn: {
-        backgroundColor: theme.colors.primary,
-        paddingHorizontal: theme.spacing.md,
-        borderRadius: 4,
-        justifyContent: 'center',
-    },
-    addBtnText: {
-        color: '#fff',
-        fontWeight: 'bold',
+        minWidth: 64,
+        backgroundColor: theme.colors.surface,
     },
     listHeader: {
         paddingHorizontal: theme.spacing.md,

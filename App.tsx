@@ -6,6 +6,7 @@ import { Text, ActivityIndicator, View } from 'react-native';
 import { AppNavigator } from './src/ui/navigation/AppNavigator';
 import { runMigrations } from './src/data/db';
 import { ScreenLayout } from './src/ui/components/ScreenLayout';
+import { SoftNoticeProvider } from './src/ui/components';
 import { theme } from './src/ui/theme';
 
 export default function App() {
@@ -51,10 +52,12 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
-        <StatusBar style="dark" />
-        <AppNavigator />
-      </NavigationContainer>
+      <SoftNoticeProvider>
+        <NavigationContainer>
+          <StatusBar style="dark" />
+          <AppNavigator />
+        </NavigationContainer>
+      </SoftNoticeProvider>
     </SafeAreaProvider>
   );
 }
