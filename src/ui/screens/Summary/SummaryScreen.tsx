@@ -65,7 +65,7 @@ salesRepo.sumSalesByRange(startMs, endMs).then((sales) => Math.round(sales * 0.0
         } finally {
             setLoading(false);
         }
-    }, [currentDate]);
+    }, [currentDate, calcSalaryForRange]);
 
     useFocusEffect(
         useCallback(() => {
