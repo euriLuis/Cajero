@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback, memo, useMemo } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, Alert } from 'react-native';
-import { salesRepo } from '../../../data/repositories';
+import { salesRepo, productsRepo } from '../../../data/repositories';
 import { Sale } from '../../../domain/models/Sale';
 import { SaleItem } from '../../../domain/models/SaleItem';
+import { Product } from '../../../domain/models/Product';
 import { formatCents, parseMoneyToCents } from '../../../utils/money';
 import { getDayRangeMs, formatDateShort, formatTimeNoSeconds, formatDateTimeWithSeconds } from '../../../utils/dates';
 import { theme } from '../../theme';
@@ -47,7 +48,7 @@ const SaleDetailItemRow = memo(({
 }: {
     item: SaleItem;
     isEditMode: boolean;
-    draft: { qty: string; price: string; deleted?: boolean };
+    draft: { qty: string; price: string; deleted?: boolean; _newItem?: boolean; _productId?: number; _productNameSnapshot?: string; _unitPriceSnapshotCents?: number };
     error?: string;
     onQtyChange: (id: number, val: string) => void;
     onPriceChange: (id: number, val: string) => void;
@@ -160,8 +161,16 @@ export const HistoryScreen = () => {
 
     // Edit mode
     const [isEditMode, setIsEditMode] = useState(false);
-    const [editedItems, setEditedItems] = useState<Map<number, { qty: string; price: string; deleted?: boolean }>>(new Map());
+    type EditDraft = { qty: string; price: string; deleted?: boolean; _newItem?: boolean; _productId?: number; _productNameSnapshot?: string; _unitPriceSnapshotCents?: number };
+    const [editedItems, setEditedItems] = useState<Map<number, EditDraft>>(new Map());
     const [editErrors, setEditErrors] = useState<Map<number, string>>(new Map());
+
+    // Add product in edit mode
+    const [editProducts, setEditProducts] = useState<Product[]>([]);
+    const [editProductSelectorVisible, setEditProductSelectorVisible] = useState(false);
+    const [editSelectedProduct, setEditSelectedProduct] = useState<Product | null>(null);
+    const [editAddQty, setEditAddQty] = useState('1');
+    const [editProductSearch, setEditProductSearch] = useState('');
 
     // Items summary
     const [itemsSummaryBySaleId, setItemsSummaryBySaleId] = useState<Record<number, string>>({});
@@ -214,18 +223,23 @@ export const HistoryScreen = () => {
             setIsEditMode(false);
             setEditedItems(new Map());
             setEditErrors(new Map());
+            setEditSelectedProduct(null);
+            setEditAddQty('1');
+            setEditProductSearch('');
         } else {
             if (saleItems.length === 0) {
                 showNotice({ title: 'Error', message: 'No hay productos para editar', type: 'error' });
                 return;
             }
-            const initialDraft = new Map<number, { qty: string; price: string; deleted?: boolean }>();
+            const initialDraft = new Map<number, EditDraft>();
             for (const item of saleItems) {
                 initialDraft.set(item.id, { qty: '', price: '' });
             }
             setEditedItems(initialDraft);
             setEditErrors(new Map());
             setIsEditMode(true);
+            // Load active products for adding new items
+            productsRepo.listActiveProducts().then(setEditProducts).catch(() => {});
         }
     }, [isEditMode, saleItems]);
 
@@ -286,6 +300,45 @@ export const HistoryScreen = () => {
         });
     }, []);
 
+    const handleAddProductToSale = useCallback(() => {
+        if (!editSelectedProduct) {
+            showNotice({ title: 'Error', message: 'Selecciona un producto', type: 'error' });
+            return;
+        }
+        const qty = parseInt(editAddQty || '1');
+        if (isNaN(qty) || qty < 1) {
+            showNotice({ title: 'Error', message: 'Cantidad debe ser >= 1', type: 'error' });
+            return;
+        }
+
+        // Check if product already exists in saleItems
+        const existing = saleItems.find(si => si.productId === editSelectedProduct.id);
+        if (existing) {
+            // Sum qty to existing item's draft
+            const draft = editedItems.get(existing.id) ?? { qty: '', price: '' };
+            const currentQty = draft.qty !== '' ? parseInt(draft.qty || '0') || existing.qty : existing.qty;
+            handleItemQtyChange(existing.id, (currentQty + qty).toString());
+        } else {
+            // Add as new temporary item with negative key
+            const tempKey = -Date.now();
+            setEditedItems(prev => {
+                const updated = new Map(prev);
+                updated.set(tempKey, {
+                    qty: qty.toString(),
+                    price: (editSelectedProduct.priceCents / 100).toString(),
+                    _newItem: true,
+                    _productId: editSelectedProduct.id,
+                    _productNameSnapshot: editSelectedProduct.name,
+                    _unitPriceSnapshotCents: editSelectedProduct.priceCents,
+                });
+                return updated;
+            });
+        }
+
+        setEditSelectedProduct(null);
+        setEditAddQty('1');
+    }, [editSelectedProduct, editAddQty, saleItems, editedItems, handleItemQtyChange]);
+
     const handleQtyIncrement = useCallback((itemId: number) => {
         const item = saleItems.find(i => i.id === itemId);
         if (!item) return;
@@ -313,6 +366,15 @@ export const HistoryScreen = () => {
             if (draft.price !== '') price = parseMoneyToCents(draft.price);
             total += qty * price;
         }
+        // Include new temporary items
+        for (const [key, draft] of editedItems) {
+            if (key < 0 && (draft as any)._newItem) {
+                if (draft.deleted) continue;
+                const qty = parseInt(draft.qty) || 0;
+                const price = draft.price !== '' ? parseMoneyToCents(draft.price) : (draft as any)._unitPriceSnapshotCents;
+                total += qty * price;
+            }
+        }
         return total;
     }, [saleItems, editedItems]);
 
@@ -326,7 +388,16 @@ export const HistoryScreen = () => {
             const edits: any[] = [];
             for (const [itemId, draft] of editedItems) {
                 if (draft.deleted) edits.push({ type: 'delete', itemId });
-                else if (draft.qty !== '' || draft.price !== '') {
+                else if ((draft as any)._newItem) {
+                    // New item to add
+                    edits.push({
+                        type: 'add',
+                        productId: (draft as any)._productId,
+                        productNameSnapshot: (draft as any)._productNameSnapshot,
+                        unitPriceSnapshotCents: draft.price !== '' ? parseMoneyToCents(draft.price) : (draft as any)._unitPriceSnapshotCents,
+                        qty: parseInt(draft.qty) || 1
+                    });
+                } else if (draft.qty !== '' || draft.price !== '') {
                     const item = saleItems.find(i => i.id === itemId);
                     if (!item) continue;
                     edits.push({
@@ -512,6 +583,97 @@ export const HistoryScreen = () => {
                         />
 
                         {isEditMode && (
+                            <View style={styles.addProductSection}>
+                                <Text style={styles.addProductSectionTitle}>Agregar producto a la venta</Text>
+
+                                {/* Product Selector Button */}
+                                <TouchableOpacity
+                                    style={styles.addProductSelector}
+                                    onPress={() => setEditProductSelectorVisible(true)}
+                                >
+                                    <Text style={editSelectedProduct ? styles.addProductSelectorSelected : styles.addProductSelectorPlaceholder}>
+                                        {editSelectedProduct ? editSelectedProduct.name : 'Seleccionar producto...'}
+                                    </Text>
+                                    <Text style={styles.addProductSelectorArrow}>▼</Text>
+                                </TouchableOpacity>
+
+                                {/* Qty + Add Button Row */}
+                                <View style={styles.addProductRow}>
+                                    <SoftInput
+                                        containerStyle={styles.addProductQtyInput}
+                                        size="compact"
+                                        value={editAddQty}
+                                        onChangeText={setEditAddQty}
+                                        keyboardType="numeric"
+                                        placeholder="Cant."
+                                    />
+                                    <TouchableOpacity
+                                        style={[styles.addProductBtn, !editSelectedProduct && styles.addProductBtnDisabled]}
+                                        onPress={handleAddProductToSale}
+                                        disabled={!editSelectedProduct}
+                                    >
+                                        <Text style={styles.addProductBtnText}>+ Agregar</Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                {/* Product Selector Modal */}
+                                <Modal
+                                    visible={editProductSelectorVisible}
+                                    transparent
+                                    animationType="fade"
+                                    onRequestClose={() => setEditProductSelectorVisible(false)}
+                                >
+                                    <View style={styles.productSelectorOverlay}>
+                                        <View style={styles.productSelectorContent}>
+                                            <View style={styles.productSelectorHeader}>
+                                                <Text style={styles.productSelectorTitle}>Seleccionar Producto</Text>
+                                                <TouchableOpacity onPress={() => setEditProductSelectorVisible(false)}>
+                                                    <Text style={styles.productSelectorClose}>✕</Text>
+                                                </TouchableOpacity>
+                                            </View>
+
+                                            <View style={styles.productSelectorSearch}>
+                                                <SoftInput
+                                                    containerStyle={styles.productSelectorSearchInput}
+                                                    placeholder="Buscar producto..."
+                                                    value={editProductSearch}
+                                                    onChangeText={setEditProductSearch}
+                                                />
+                                            </View>
+
+                                            <FlatList
+                                                data={editProductSearch.trim()
+                                                    ? editProducts.filter(p => p.name.toLowerCase().includes(editProductSearch.toLowerCase()))
+                                                    : editProducts}
+                                                keyExtractor={item => item.id.toString()}
+                                                renderItem={({ item }) => (
+                                                    <TouchableOpacity
+                                                        style={styles.productSelectorItem}
+                                                        onPress={() => {
+                                                            setEditSelectedProduct(item);
+                                                            setEditProductSelectorVisible(false);
+                                                            setEditProductSearch('');
+                                                        }}
+                                                    >
+                                                        <Text style={styles.productSelectorItemName}>{item.name}</Text>
+                                                        <Text style={styles.productSelectorItemPrice}>{formatCents(item.priceCents)}</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                                ItemSeparatorComponent={() => <View style={styles.productSelectorSeparator} />}
+                                                style={styles.productSelectorList}
+                                                ListEmptyComponent={
+                                                    <Text style={styles.productSelectorEmpty}>
+                                                        {editProductSearch.trim() ? 'No se encontraron productos' : 'No hay productos disponibles'}
+                                                    </Text>
+                                                }
+                                            />
+                                        </View>
+                                    </View>
+                                </Modal>
+                            </View>
+                        )}
+
+                        {isEditMode && (
                             <View style={styles.actionButtonsContainer}>
                                 <TouchableOpacity
                                     style={[styles.actionBtn, styles.saveBtn, editErrors.size > 0 && styles.actionBtnDisabled]}
@@ -600,4 +762,36 @@ const styles = StyleSheet.create({
     cancelBtn: { backgroundColor: '#EEE' },
     actionBtnText: { fontWeight: 'bold', color: '#FFF' },
     inputError: { borderBottomColor: '#FF5252' },
+
+    // Add Product Section
+    addProductSection: { paddingHorizontal: 15, paddingTop: 12, paddingBottom: 8, borderTopWidth: 1, borderTopColor: '#EEE' },
+    addProductSectionTitle: { fontSize: 13, fontWeight: 'bold', color: '#666', marginBottom: 8 },
+    addProductSelector: {
+        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+        backgroundColor: '#FFF', paddingVertical: 10, paddingHorizontal: 12,
+        borderRadius: 8, borderWidth: 1.5, borderColor: '#DDD', marginBottom: 8,
+    },
+    addProductSelectorSelected: { fontSize: 14, color: '#333', fontWeight: '500', flex: 1 },
+    addProductSelectorPlaceholder: { fontSize: 14, color: '#999', flex: 1 },
+    addProductSelectorArrow: { fontSize: 11, color: '#999', fontWeight: '600' },
+    addProductRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+    addProductQtyInput: { width: 75 },
+    addProductBtn: { flex: 1, backgroundColor: theme.colors.primary, paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
+    addProductBtnDisabled: { opacity: 0.5 },
+    addProductBtnText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+
+    // Product Selector Modal
+    productSelectorOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+    productSelectorContent: { backgroundColor: '#FFF', borderTopLeftRadius: 12, borderTopRightRadius: 12, maxHeight: '80%', paddingBottom: 16 },
+    productSelectorHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: '#EEE' },
+    productSelectorTitle: { fontSize: 16, fontWeight: 'bold' },
+    productSelectorClose: { fontSize: 22, color: '#999' },
+    productSelectorSearch: { marginHorizontal: 12, marginVertical: 10 },
+    productSelectorSearchInput: { minHeight: 42 },
+    productSelectorList: { maxHeight: 350 },
+    productSelectorItem: { flexDirection: 'row', justifyContent: 'space-between', padding: 12, marginHorizontal: 12 },
+    productSelectorItemName: { fontSize: 14, flex: 1 },
+    productSelectorItemPrice: { fontSize: 14, fontWeight: '600', color: theme.colors.primary },
+    productSelectorSeparator: { height: 1, backgroundColor: '#EEE', marginHorizontal: 12 },
+    productSelectorEmpty: { textAlign: 'center', color: '#999', padding: 24, fontSize: 13 },
 });

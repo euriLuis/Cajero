@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, Animated, Easing } from 'react-native';
 import { productsRepo, salesRepo } from '../../../data/repositories';
 import { Product } from '../../../domain/models/Product';
@@ -31,6 +31,7 @@ export const SaleScreen = () => {
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [selectorModalVisible, setSelectorModalVisible] = useState(false);
     const [selectorModalMounted, setSelectorModalMounted] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
 
     // Quantity
     const [quantity, setQuantity] = useState('1');
@@ -122,7 +123,14 @@ export const SaleScreen = () => {
     const handleSelectProduct = (product: Product) => {
         setSelectedProduct(product);
         setSelectorModalVisible(false);
+        setSearchTerm('');
     };
+
+    const filteredProducts = useMemo(() => {
+        if (!searchTerm.trim()) return products;
+        const term = searchTerm.toLowerCase();
+        return products.filter(p => p.name.toLowerCase().includes(term));
+    }, [products, searchTerm]);
 
     const validateQty = (qtyStr: string): { valid: boolean; error?: string; qty?: number } => {
         if (qtyStr.trim() === '') {
@@ -306,7 +314,10 @@ export const SaleScreen = () => {
                 <View style={styles.selectorSection}>
                     <TouchableOpacity
                         style={[styles.dropdown, isSaving && styles.dropdownDisabled]}
-                        onPress={() => setSelectorModalVisible(true)}
+                        onPress={() => {
+                            setSearchTerm('');
+                            setSelectorModalVisible(true);
+                        }}
                         disabled={isSaving}
                     >
                         <Text style={selectedProduct ? styles.dropdownTextSelected : styles.dropdownTextPlaceholder}>
@@ -389,14 +400,25 @@ export const SaleScreen = () => {
                             </TouchableOpacity>
                         </View>
 
+                        <View style={styles.modalSearch}>
+                            <SoftInput
+                                containerStyle={styles.modalSearchInput}
+                                placeholder="Buscar producto..."
+                                value={searchTerm}
+                                onChangeText={setSearchTerm}
+                            />
+                        </View>
+
                         <FlatList
-                            data={products}
+                            data={filteredProducts}
                             keyExtractor={item => item.id.toString()}
                             renderItem={renderProductInModal}
                             ItemSeparatorComponent={() => <View style={styles.modalSeparator} />}
                             style={styles.modalList}
                             ListEmptyComponent={
-                                <Text style={styles.modalEmptyText}>No hay productos disponibles</Text>
+                                <Text style={styles.modalEmptyText}>
+                                    {searchTerm.trim() ? 'No se encontraron productos' : 'No hay productos disponibles'}
+                                </Text>
                             }
                             refreshing={refreshing}
                             onRefresh={() => loadProducts(true)}
@@ -721,6 +743,9 @@ const styles = StyleSheet.create({
     modalSearch: {
         marginHorizontal: theme.spacing.md,
         marginVertical: theme.spacing.md,
+    },
+    modalSearchInput: {
+        minHeight: 44,
     },
     modalList: {
         maxHeight: 400,

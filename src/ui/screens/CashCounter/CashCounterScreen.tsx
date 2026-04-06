@@ -132,6 +132,9 @@ const BalanceComparisonCard = memo(({
     actualValue,
     diffValue,
     accentColor,
+    okText,
+    surplusText,
+    deficitText,
 }: {
     title: string;
     expectedLabel: string;
@@ -140,8 +143,11 @@ const BalanceComparisonCard = memo(({
     actualValue: number;
     diffValue: number;
     accentColor: string;
+    okText?: string;
+    surplusText?: string;
+    deficitText?: string;
 }) => {
-    const diffStatus = diffValue > 0 ? 'SOBRA' : diffValue < 0 ? 'FALTA' : 'OK';
+    const diffStatus = diffValue > 0 ? (surplusText || 'SOBRA') : diffValue < 0 ? (deficitText || 'FALTA') : (okText || 'OK');
     const diffStyle = diffValue > 0 ? styles.positive : diffValue < 0 ? styles.negative : styles.neutral;
     const tagStyle = diffValue > 0 ? styles.tagPositive : diffValue < 0 ? styles.tagNegative : styles.tagNeutral;
 
@@ -149,20 +155,19 @@ const BalanceComparisonCard = memo(({
         <SoftCard style={[styles.summaryCard, { borderLeftColor: accentColor }]}>
             <Text style={styles.balanceTitle}>{title}</Text>
             <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>{expectedLabel}</Text>
-                <Text style={styles.summaryValue}>{formatCents(expectedValue)}</Text>
+                <Text style={styles.expectedBalanceText}>{expectedLabel}</Text>
+                <Text style={styles.expectedBalanceValue}>{formatCents(expectedValue)}</Text>
             </View>
             <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>{actualLabel}</Text>
                 <Text style={styles.summaryValue}>{formatCents(actualValue)}</Text>
             </View>
             <View style={[styles.summaryRow, styles.diffBorder]}>
-                <Text style={styles.summaryLabelBold}>Diferencia:</Text>
                 <View style={styles.diffContainer}>
-                    <Text style={[styles.diffText, diffStyle]}>{formatCents(diffValue)}</Text>
                     <View style={[styles.tag, tagStyle]}>
                         <Text style={styles.tagText}>{diffStatus}</Text>
                     </View>
+                    {diffValue !== 0 && <Text style={[styles.diffText, diffStyle]}>{formatCents(Math.abs(diffValue))}</Text>}
                 </View>
             </View>
         </SoftCard>
@@ -423,16 +428,19 @@ export const CashCounterScreen = () => {
 
     const HeaderComponent = useMemo(() => (
         <View style={styles.headerContainer}>
-            {/* Top Comparison: Conteo Actual vs Total Ventas */}
-            <BalanceComparisonCard
-                title="Balance esperado (Conteo actual ↔ Ventas)"
-                expectedLabel="Total pestaña Ventas (Esperado):"
-                expectedValue={salesTabTotal}
-                actualLabel="Total contado:"
-                actualValue={totalContadoCents}
-                diffValue={diffConteoVsVentas}
-                accentColor={theme.colors.primary}
-            />
+            {/* Top Comparison: Conteo Actual vs Total Ventas (only if there are sales) */}
+            {salesTabTotal > 0 && (
+                <BalanceComparisonCard
+                    title="Balance esperado (Ventas)"
+                    expectedLabel="Total ventas:"
+                    expectedValue={salesTabTotal}
+                    actualLabel="Total contado:"
+                    actualValue={totalContadoCents}
+                    diffValue={diffConteoVsVentas}
+                    accentColor={theme.colors.primary}
+                    okText="Cuadra con Ventas"
+                />
+            )}
 
             {/* Current Counter UI */}
             <View style={[styles.sectionTitleRow, styles.sectionTitleRowCompactTop]}>
@@ -469,13 +477,16 @@ export const CashCounterScreen = () => {
 
             {/* Stored Cash Comparison vs Summary Caja */}
             <BalanceComparisonCard
-                title="Balance esperado (Caja guardada ↔ Resumen)"
-                expectedLabel="Caja Resumen (Esperado):"
+                title="Balance esperado (Resumen)"
+                expectedLabel="Caja esperada (Resumen):"
                 expectedValue={expectedCashSummary}
-                actualLabel="Total en Caja Guardado:"
+                actualLabel="Caja guardada:"
                 actualValue={totalStoredCents}
                 diffValue={diffStoredVsSummary}
                 accentColor="#10B981"
+                okText="Caja cuadrada"
+                surplusText="Sobrante en caja"
+                deficitText="Faltante en caja"
             />
 
             {/* Stored Balance Detail */}
@@ -630,6 +641,8 @@ const styles = StyleSheet.create({
     summaryLabel: { fontSize: 12, color: theme.colors.mutedText },
     summaryValue: { fontSize: 12, fontWeight: '600', color: theme.colors.text },
     summaryLabelBold: { fontSize: 13, fontWeight: 'bold', color: theme.colors.text },
+    expectedBalanceText: { fontSize: 11, color: theme.colors.mutedText },
+    expectedBalanceValue: { fontSize: 11, fontWeight: '700', color: theme.colors.text },
     diffBorder: { marginTop: 4, paddingTop: 4, borderTopWidth: 1, borderTopColor: theme.colors.border },
     diffContainer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     diffText: { fontSize: 14, fontWeight: 'bold' },

@@ -51,22 +51,18 @@ export const SoftNoticeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       Animated.timing(translateY, { toValue: 0, duration: 160, useNativeDriver: true }),
     ]).start();
 
-    hideTimerRef.current = setTimeout(hideNotice, options.durationMs ?? 1800);
+    hideTimerRef.current = setTimeout(hideNotice, options.durationMs ?? 1000);
   }, [hideNotice, opacity, translateY]);
 
   const contextValue = useMemo(() => ({ showNotice }), [showNotice]);
-
-  const indicatorStyle =
-    notice?.type === 'success' ? styles.success : notice?.type === 'error' ? styles.error : styles.info;
 
   return (
     <SoftNoticeContext.Provider value={contextValue}>
       {children}
       {visible && notice ? (
         <View pointerEvents="box-none" style={styles.portal}>
-          <Animated.View style={[styles.toast, { opacity, transform: [{ translateY }] }]}> 
+          <Animated.View style={[styles.toast, { opacity, transform: [{ translateY }] }]}>
             <Pressable onPress={hideNotice} style={styles.toastPressable}>
-              <View style={[styles.indicator, indicatorStyle]} />
               <View style={styles.content}>
                 <Text style={styles.title}>{notice.title}</Text>
                 {!!notice.message && <Text style={styles.message}>{notice.message}</Text>}
@@ -110,16 +106,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
-    gap: theme.spacing.sm,
   },
-  indicator: {
-    width: 8,
-    alignSelf: 'stretch',
-    borderRadius: 8,
-  },
-  info: { backgroundColor: '#6B7A99' },
-  success: { backgroundColor: '#2FA16F' },
-  error: { backgroundColor: '#D14343' },
   content: { flex: 1 },
   title: {
     ...theme.typography.body,

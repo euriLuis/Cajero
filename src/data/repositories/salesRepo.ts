@@ -191,7 +191,7 @@ export const salesRepo = {
 
     async applySaleEdits(
         saleId: number,
-        edits: Array<{ type: 'update'; itemId: number; qty: number; unitPriceSnapshotCents: number } | { type: 'delete'; itemId: number }>
+        edits: Array<{ type: 'update'; itemId: number; qty: number; unitPriceSnapshotCents: number } | { type: 'delete'; itemId: number } | { type: 'add'; productId: number; productNameSnapshot: string; unitPriceSnapshotCents: number; qty: number }>
     ): Promise<void> {
         const db = await getDb();
 
@@ -205,6 +205,14 @@ export const salesRepo = {
                     });
                 } else if (edit.type === 'delete') {
                     await salesRepo.deleteSaleItem(edit.itemId);
+                } else if (edit.type === 'add') {
+                    const lineTotalCents = edit.unitPriceSnapshotCents * edit.qty;
+                    await db.runAsync(
+                        `INSERT INTO sale_items
+                        (sale_id, product_id, product_name_snapshot, unit_price_snapshot_cents, qty, line_total_cents)
+                        VALUES (?, ?, ?, ?, ?, ?)`,
+                        [saleId, edit.productId, edit.productNameSnapshot, edit.unitPriceSnapshotCents, edit.qty, lineTotalCents]
+                    );
                 }
             }
 
