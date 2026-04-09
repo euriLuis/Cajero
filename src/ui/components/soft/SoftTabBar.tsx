@@ -18,7 +18,7 @@ export const SoftTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, na
   const [containerWidth, setContainerWidth] = useState(0);
 
   const tabCount = state.routes.length;
-  const trackPadding = 6;
+  const trackPadding = 5;
   const tabWidth = useMemo(() => {
     if (!containerWidth || tabCount === 0) return 0;
     return (containerWidth - trackPadding * 2) / tabCount;
@@ -128,19 +128,19 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.card,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    padding: 6,
+    padding: 5,
     overflow: 'hidden',
     ...theme.shadows.softCardShadow,
   },
   activePill: {
     position: 'absolute',
-    top: 6,
-    bottom: 6,
-    left: 6,
-    borderRadius: theme.radius.control,
+    top: 5,
+    bottom: 5,
+    left: 5,
+    borderRadius: 14,
     backgroundColor: theme.colors.background,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.7)',

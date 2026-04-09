@@ -631,7 +631,7 @@ export const CashCounterScreen = () => {
 
 const styles = StyleSheet.create({
     centerContent: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    listContent: { padding: theme.spacing.md, paddingBottom: 100 },
+    listContent: { paddingHorizontal: 6, paddingTop: theme.spacing.md, paddingBottom: 100 },
     headerContainer: { marginBottom: 10 },
 
     // Top Summary
