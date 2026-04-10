@@ -201,6 +201,9 @@ export const CashCounterScreen = () => {
         else setRefreshing(true);
 
         try {
+            // Check if we need to reset cash state for new day
+            await cashRepo.resetCashStateIfNewDay();
+
             const [draft, state, movs, salesDraftTotal, { startMs, endMs }] = await Promise.all([
                 cashRepo.getCashCounterDraft(),
                 cashRepo.getCashState(),

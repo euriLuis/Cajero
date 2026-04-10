@@ -1,4 +1,5 @@
 import { getDb } from '../db/sqlite';
+import { getCurrentLocalDateStr } from '../../utils/dates';
 
 export interface CashMovement {
     id: number;
@@ -13,6 +14,17 @@ export interface CashState {
     denoms: Record<string, number>;
     updatedAt: string;
 }
+
+const EMPTY_CASH_STATE: Record<string, number> = {
+    "1000": 0,
+    "500": 0,
+    "200": 0,
+    "100": 0,
+    "50": 0,
+    "20": 0,
+    "10": 0,
+    "5": 0
+};
 
 export const cashRepo = {
     async getCashState(): Promise<CashState> {
@@ -157,5 +169,39 @@ export const cashRepo = {
             await this.setCashState(newDenoms);
             await db.runAsync('DELETE FROM cash_movements WHERE id = ?', [id]);
         });
+    },
+
+    // Daily reset logic
+    async getCashStateLastResetDay(): Promise<string | null> {
+        const db = await getDb();
+        const result = await db.getAllAsync<{ value: string }>(
+            'SELECT value FROM app_settings WHERE key = ?',
+            ['cash_state_last_reset_day']
+        );
+        if (result.length > 0) {
+            return result[0].value;
+        }
+        return null;
+    },
+
+    async setCashStateLastResetDay(day: string): Promise<void> {
+        const db = await getDb();
+        await db.runAsync(
+            'INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)',
+            ['cash_state_last_reset_day', day]
+        );
+    },
+
+    async resetCashStateIfNewDay(): Promise<boolean> {
+        const today = getCurrentLocalDateStr();
+        const lastResetDay = await this.getCashStateLastResetDay();
+
+        if (lastResetDay !== today) {
+            await this.setCashState(EMPTY_CASH_STATE);
+            await this.setCashStateLastResetDay(today);
+            return true;
+        }
+
+        return false;
     }
 };
