@@ -1,201 +1,45 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ScrollView } from 'react-native';
-import { salesRepo, withdrawalsRepo } from '../../../data/repositories';
-import { Withdrawal } from '../../../domain/models/Withdrawal';
-import { formatCents, parseMoneyToCents } from '../../../utils/money';
-import { getDayRangeMs, getWeekRangeMs, formatDateShort, formatTimeNoSeconds } from '../../../utils/dates';
-import { theme } from '../../theme';
+import React, { useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView } from 'react-native';
+import { formatCents } from '../../../shared/utils/money';
+import { getDayRangeMs, getWeekRangeMs, formatDateShort, formatTimeNoSeconds } from '../../../shared/utils/dates';
+import { theme } from '../../../ui/theme';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SoftButton, SoftInput, useSoftNotice } from '../../components';
-
-interface ProductSold {
-    productName: string;
-    totalQty: number;
-}
+import { SoftButton, SoftInput } from '../../../ui/components';
+import { useSummaryScreen } from '../hooks/useSummaryScreen';
 
 export const SummaryScreen = () => {
     const insets = useSafeAreaInsets();
-    const [currentDate, setCurrentDate] = useState(new Date());
-    const [showDatePicker, setShowDatePicker] = useState(false);
-
-    // Summary Data
-    const [totalSales, setTotalSales] = useState(0);
-    const [totalWithdrawals, setTotalWithdrawals] = useState(0);
-    const [totalWeeklySales, setTotalWeeklySales] = useState(0);
-    const [totalDailySalary, setTotalDailySalary] = useState(0);
-    const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
-    const [productsSold, setProductsSold] = useState<ProductSold[]>([]);
-    const [loading, setLoading] = useState(false);
-
-    // Form Data
-    const [formAmount, setFormAmount] = useState('');
-    const [formReason, setFormReason] = useState('');
-    const [amountError, setAmountError] = useState<string | null>(null);
-
-    // Soft Delete
-    const [pendingDelete, setPendingDelete] = useState<{ id: number; withdrawal: Withdrawal } | null>(null);
-    const pendingDeleteTimerRef = useRef<NodeJS.Timeout | null>(null);
-    const { showNotice } = useSoftNotice();
-
-    const loadData = useCallback(async () => {
-        setLoading(true);
-        try {
-            const { startMs, endMs } = getDayRangeMs(currentDate);
-            const { startMs: weekStartMs, endMs: weekEndMs } = getWeekRangeMs(currentDate);
-
-            const [salesSum, withSum, withList, weeklySalesSum, productsSoldList, salaryDaily] = await Promise.all([
-                salesRepo.sumSalesByRange(startMs, endMs),
-                withdrawalsRepo.sumWithdrawalsByRange(startMs, endMs),
-                withdrawalsRepo.listWithdrawalsByRange(startMs, endMs),
-                salesRepo.sumSalesByRange(weekStartMs, weekEndMs),
-                salesRepo.getProductsSoldSummary(startMs, endMs),
-salesRepo.sumSalesByRange(startMs, endMs).then((sales) => Math.round(sales * 0.005)),
-            ]);
-
-            setTotalSales(salesSum);
-            setTotalWithdrawals(withSum);
-            setWithdrawals(withList);
-            setTotalWeeklySales(weeklySalesSum);
-            setTotalDailySalary(salaryDaily);
-            setProductsSold(productsSoldList);
-        } catch (e) {
-            showNotice({ title: 'Error', message: 'No se pudieron cargar los datos de la caja', type: 'error' });
-        } finally {
-            setLoading(false);
-        }
-    }, [currentDate, showNotice]);
-
-    useFocusEffect(
-        useCallback(() => {
-            loadData();
-
-            // Cleanup timer when leaving screen
-            return () => {
-                if (pendingDeleteTimerRef.current) {
-                    clearTimeout(pendingDeleteTimerRef.current);
-                    pendingDeleteTimerRef.current = null;
-                }
-                // Cancel pending delete when leaving screen
-                setPendingDelete(null);
-            };
-        }, [loadData])
-    );
-
-    // Cleanup timer when changing date
-    useEffect(() => {
-        if (pendingDeleteTimerRef.current) {
-            clearTimeout(pendingDeleteTimerRef.current);
-            pendingDeleteTimerRef.current = null;
-        }
-        // Cancel pending delete when date changes
-        setPendingDelete(null);
-    }, [currentDate]);
-
-    // Cleanup timer on component unmount
-    useEffect(() => {
-        return () => {
-            if (pendingDeleteTimerRef.current) {
-                clearTimeout(pendingDeleteTimerRef.current);
-                pendingDeleteTimerRef.current = null;
-            }
-        };
-    }, []);
-
-    const handleDateChange = (event: any, date?: Date) => {
-        setShowDatePicker(false);
-        if (date) {
-            setCurrentDate(date);
-        }
-    };
-
-    const handleQuickDate = (type: 'today' | 'yesterday') => {
-        const newDate = new Date();
-        if (type === 'yesterday') {
-            newDate.setDate(newDate.getDate() - 1);
-        }
-        setCurrentDate(newDate);
-    };
-
-    const validateAmount = (amount: string): { valid: boolean; error?: string; cents?: number } => {
-        if (amount.trim() === '') {
-            return { valid: false, error: 'Ingresa un monto' };
-        }
-        const cents = parseMoneyToCents(amount);
-        if (isNaN(cents)) {
-            return { valid: false, error: 'Monto inválido' };
-        }
-        if (cents <= 0) {
-            return { valid: false, error: 'Monto debe ser > 0' };
-        }
-        return { valid: true, cents };
-    };
-
-    const handleAmountChange = (text: string) => {
-        setFormAmount(text);
-    };
-
-    const handleAddWithdrawal = async () => {
-        // Validate on submit
-        const validation = validateAmount(formAmount);
-
-        if (!validation.valid) {
-            setAmountError(validation.error || null);
-            return;
-        }
-
-        const amountCents = validation.cents || 0;
-
-        try {
-            // If date is today, use current time. If not, use the selected date at 12:00
-            let createdAtMs = Date.now();
-            const isToday = formatDateShort(Date.now()) === formatDateShort(currentDate.getTime());
-
-            if (!isToday) {
-                const combined = new Date(currentDate);
-                combined.setHours(12, 0, 0, 0);
-                createdAtMs = combined.getTime();
-            }
-
-            await withdrawalsRepo.createWithdrawal(amountCents, formReason, createdAtMs);
-            setFormAmount('');
-            setFormReason('');
-            setAmountError(null);
-            loadData();
-        } catch (e) {
-            showNotice({ title: 'Error', message: 'No se pudo registrar la extracción', type: 'error' });
-        }
-    };
-
-    const handleDeleteWithdrawal = (withdrawal: Withdrawal) => {
-        // Mark as pending delete without confirmation
-        setPendingDelete({ id: withdrawal.id, withdrawal });
-
-        // Start 5-second timer
-        if (pendingDeleteTimerRef.current) {
-            clearTimeout(pendingDeleteTimerRef.current);
-        }
-
-        pendingDeleteTimerRef.current = setTimeout(async () => {
-            try {
-                await withdrawalsRepo.deleteWithdrawal(withdrawal.id);
-                setPendingDelete(null);
-                loadData();
-            } catch (e) {
-                showNotice({ title: 'Error', message: 'No se pudo eliminar la extracción', type: 'error' });
-                setPendingDelete(null);
-            }
-        }, 5000);
-    };
-
-    const handleCancelDelete = () => {
-        if (pendingDeleteTimerRef.current) {
-            clearTimeout(pendingDeleteTimerRef.current);
-            pendingDeleteTimerRef.current = null;
-        }
-        setPendingDelete(null);
-    };
+    const {
+        currentDate,
+        showDatePicker,
+        setShowDatePicker,
+        totalSales,
+        totalWithdrawals,
+        totalWeeklySales,
+        totalDailySalary,
+        totalWeeklySalary,
+        netBalance,
+        withdrawals,
+        productsSold,
+        loading,
+        formAmount,
+        setFormAmount,
+        formReason,
+        setFormReason,
+        amountError,
+        setAmountError,
+        pendingDelete,
+        todayFlag,
+        yesterdayFlag,
+        handleDateChange,
+        handleQuickDate,
+        handleAmountChange,
+        handleAddWithdrawal,
+        handleDeleteWithdrawal,
+        handleCancelDelete,
+        handleRefresh,
+    } = useSummaryScreen();
 
     const renderHeader = useCallback(() => (
         <View>
@@ -203,13 +47,13 @@ salesRepo.sumSalesByRange(startMs, endMs).then((sales) => Math.round(sales * 0.0
             <View style={styles.topBar}>
                 <View style={styles.quickButtons}>
                     <TouchableOpacity
-                        style={[styles.quickBtn, formatDateShort(currentDate.getTime()) === formatDateShort(Date.now()) && styles.activeQuickBtn]}
+                        style={[styles.quickBtn, todayFlag && styles.activeQuickBtn]}
                         onPress={() => handleQuickDate('today')}
                     >
                         <Text style={styles.quickBtnText}>Hoy</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                        style={[styles.quickBtn, formatDateShort(currentDate.getTime()) === formatDateShort(Date.now() - 86400000) && styles.activeQuickBtn]}
+                        style={[styles.quickBtn, yesterdayFlag && styles.activeQuickBtn]}
                         onPress={() => handleQuickDate('yesterday')}
                     >
                         <Text style={styles.quickBtnText}>Ayer</Text>
@@ -242,7 +86,7 @@ salesRepo.sumSalesByRange(startMs, endMs).then((sales) => Math.round(sales * 0.0
                 </View>
                 <View style={[styles.summaryCard, styles.summaryCardSuccess]}>
                     <Text style={styles.summaryLabel}>Caja</Text>
-                    <Text style={[styles.summaryValue, styles.summaryValueSuccess]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(totalSales - totalWithdrawals)}</Text>
+                    <Text style={[styles.summaryValue, styles.summaryValueSuccess]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(netBalance)}</Text>
                 </View>
             </View>
 
@@ -258,7 +102,7 @@ salesRepo.sumSalesByRange(startMs, endMs).then((sales) => Math.round(sales * 0.0
                 </View>
                 <View style={[styles.summaryCard, styles.summaryCardSalary]}>
                     <Text style={styles.summaryLabel}>Salario semanal</Text>
-                    <Text style={[styles.summaryValue, styles.summaryValueSalary]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(Math.round(totalWeeklySales * 0.005))}</Text>
+                    <Text style={[styles.summaryValue, styles.summaryValueSalary]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(totalWeeklySalary)}</Text>
                 </View>
             </View>
 
@@ -283,9 +127,9 @@ salesRepo.sumSalesByRange(startMs, endMs).then((sales) => Math.round(sales * 0.0
                 <Text style={styles.listTitle}>Movimientos de Caja</Text>
             </View>
         </View>
-    ), [currentDate, totalSales, totalWithdrawals, totalWeeklySales, totalDailySalary, showDatePicker, productsSold, handleQuickDate, handleDateChange]);
+    ), [currentDate, totalSales, totalWithdrawals, totalWeeklySales, totalDailySalary, totalWeeklySalary, netBalance, showDatePicker, productsSold, todayFlag, yesterdayFlag, handleQuickDate, handleDateChange, setShowDatePicker]);
 
-    const renderWithdrawalItem = ({ item }: { item: Withdrawal }) => (
+    const renderWithdrawalItem = useCallback(({ item }: { item: typeof withdrawals[number] }) => (
         <TouchableOpacity
             style={styles.withdrawalItem}
             onLongPress={() => handleDeleteWithdrawal(item)}
@@ -301,7 +145,7 @@ salesRepo.sumSalesByRange(startMs, endMs).then((sales) => Math.round(sales * 0.0
                 </TouchableOpacity>
             </View>
         </TouchableOpacity>
-    );
+    ), [handleDeleteWithdrawal]);
 
     return (
         <View style={[styles.container, { paddingTop: Math.max(insets.top, 10) + 4 }]}>
@@ -347,7 +191,7 @@ salesRepo.sumSalesByRange(startMs, endMs).then((sales) => Math.round(sales * 0.0
                     ItemSeparatorComponent={() => <View style={styles.separator} />}
                     contentContainerStyle={styles.listContent}
                     refreshing={loading}
-                    onRefresh={loadData}
+                    onRefresh={handleRefresh}
                     keyboardShouldPersistTaps="handled"
                 />
 

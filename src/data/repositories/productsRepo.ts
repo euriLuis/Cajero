@@ -1,5 +1,5 @@
 import { getDb } from '../db';
-import { Product } from '../../domain/models/Product';
+import { Product } from '../../shared/domain/models/Product';
 
 export const productsRepo = {
     async listActiveProducts(search?: string): Promise<Product[]> {

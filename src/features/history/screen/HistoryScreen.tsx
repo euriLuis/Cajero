@@ -1,16 +1,14 @@
-import React, { useEffect, useState, useCallback, memo, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, Alert } from 'react-native';
-import { salesRepo, productsRepo } from '../../../data/repositories';
-import { Sale } from '../../../domain/models/Sale';
-import { SaleItem } from '../../../domain/models/SaleItem';
-import { Product } from '../../../domain/models/Product';
-import { formatCents, parseMoneyToCents } from '../../../utils/money';
-import { getDayRangeMs, formatDateShort, formatTimeNoSeconds, formatDateTimeWithSeconds } from '../../../utils/dates';
-import { theme } from '../../theme';
+import React, { memo, useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal } from 'react-native';
+import { Sale } from '../../../shared/domain/models/Sale';
+import { SaleItem } from '../../../shared/domain/models/SaleItem';
+import { formatCents, parseMoneyToCents } from '../../../shared/utils/money';
+import { getDayRangeMs, formatDateShort, formatTimeNoSeconds, formatDateTimeWithSeconds } from '../../../shared/utils/dates';
+import { theme } from '../../../ui/theme';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SoftInput, useSoftNotice } from '../../components';
+import { SoftInput } from '../../../ui/components';
+import { useHistoryScreen, EditDraft } from '../hooks/useHistoryScreen';
 
 // 2) Optimized Row Components
 const SaleRow = memo(({
@@ -149,318 +147,47 @@ const SaleDetailItemRow = memo(({
 
 export const HistoryScreen = () => {
     const insets = useSafeAreaInsets();
-    const [sales, setSales] = useState<Sale[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [currentDate, setCurrentDate] = useState(new Date());
-    const [showPicker, setShowPicker] = useState(false);
-
-    // Detail Modal
-    const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
-    const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
-    const [detailModalVisible, setDetailModalVisible] = useState(false);
-
-    // Edit mode
-    const [isEditMode, setIsEditMode] = useState(false);
-    type EditDraft = { qty: string; price: string; deleted?: boolean; _newItem?: boolean; _productId?: number; _productNameSnapshot?: string; _unitPriceSnapshotCents?: number };
-    const [editedItems, setEditedItems] = useState<Map<number, EditDraft>>(new Map());
-    const [editErrors, setEditErrors] = useState<Map<number, string>>(new Map());
-
-    // Add product in edit mode
-    const [editProducts, setEditProducts] = useState<Product[]>([]);
-    const [editProductSelectorVisible, setEditProductSelectorVisible] = useState(false);
-    const [editSelectedProduct, setEditSelectedProduct] = useState<Product | null>(null);
-    const [editAddQty, setEditAddQty] = useState('1');
-    const [editProductSearch, setEditProductSearch] = useState('');
-
-    // Items summary
-    const [itemsSummaryBySaleId, setItemsSummaryBySaleId] = useState<Record<number, string>>({});
-    const { showNotice } = useSoftNotice();
-
-    const loadSales = useCallback(async () => {
-        setLoading(true);
-        try {
-            const { startMs, endMs } = getDayRangeMs(currentDate);
-            const list = await salesRepo.listSalesByRange(startMs, endMs);
-            setSales(list);
-
-            if (list.length > 0) {
-                const saleIds = list.map(s => s.id);
-                const summaryMap = await salesRepo.getSaleItemsSummaryMap(saleIds);
-                setItemsSummaryBySaleId(summaryMap);
-            } else {
-                setItemsSummaryBySaleId({});
-            }
-        } catch (e) {
-            showNotice({ title: 'Error', message: 'No se pudieron cargar las ventas', type: 'error' });
-        } finally {
-            setLoading(false);
-        }
-    }, [currentDate]);
-
-    useFocusEffect(
-        useCallback(() => {
-            loadSales();
-        }, [loadSales])
-    );
-
-    const handleQuickDate = useCallback((type: 'today' | 'yesterday') => {
-        const newDate = new Date();
-        if (type === 'yesterday') {
-            newDate.setDate(newDate.getDate() - 1);
-        }
-        setCurrentDate(newDate);
-    }, []);
-
-    const onPickerChange = useCallback((event: any, selectedDate?: Date) => {
-        setShowPicker(false);
-        if (selectedDate) {
-            setCurrentDate(selectedDate);
-        }
-    }, []);
-
-    const handleEditModeToggle = useCallback(() => {
-        if (isEditMode) {
-            setIsEditMode(false);
-            setEditedItems(new Map());
-            setEditErrors(new Map());
-            setEditSelectedProduct(null);
-            setEditAddQty('1');
-            setEditProductSearch('');
-        } else {
-            if (saleItems.length === 0) {
-                showNotice({ title: 'Error', message: 'No hay productos para editar', type: 'error' });
-                return;
-            }
-            const initialDraft = new Map<number, EditDraft>();
-            for (const item of saleItems) {
-                initialDraft.set(item.id, { qty: '', price: '' });
-            }
-            setEditedItems(initialDraft);
-            setEditErrors(new Map());
-            setIsEditMode(true);
-            // Load active products for adding new items
-            productsRepo.listActiveProducts().then(setEditProducts).catch(() => {});
-        }
-    }, [isEditMode, saleItems]);
-
-    const handleItemQtyChange = useCallback((itemId: number, qty: string) => {
-        setEditedItems(prev => {
-            const updated = new Map(prev);
-            const current = updated.get(itemId) ?? { qty: '', price: '' };
-            updated.set(itemId, { ...current, qty });
-            return updated;
-        });
-
-        setEditErrors(prev => {
-            const errors = new Map(prev);
-            if (qty !== '') {
-                const qtyNum = parseInt(qty);
-                if (isNaN(qtyNum) || qtyNum < 1) errors.set(itemId, 'Cantidad debe ser >= 1');
-                else errors.delete(itemId);
-            } else errors.delete(itemId);
-            return errors;
-        });
-    }, []);
-
-    const handleItemPriceChange = useCallback((itemId: number, price: string) => {
-        setEditedItems(prev => {
-            const updated = new Map(prev);
-            const current = updated.get(itemId) ?? { qty: '', price: '' };
-            updated.set(itemId, { ...current, price });
-            return updated;
-        });
-
-        setEditErrors(prev => {
-            const errors = new Map(prev);
-            if (price !== '') {
-                const priceCents = parseMoneyToCents(price);
-                if (isNaN(priceCents) || priceCents < 0) errors.set(itemId, 'Precio inválido');
-                else errors.delete(itemId);
-            } else errors.delete(itemId);
-            return errors;
-        });
-    }, []);
-
-    const handleDeleteItem = useCallback((itemId: number) => {
-        setEditedItems(prev => {
-            const updated = new Map(prev);
-            const current = updated.get(itemId) ?? { qty: '', price: '' };
-            updated.set(itemId, { ...current, deleted: true });
-            return updated;
-        });
-    }, []);
-
-    const handleRestoreItem = useCallback((itemId: number) => {
-        setEditedItems(prev => {
-            const updated = new Map(prev);
-            const current = updated.get(itemId) ?? { qty: '', price: '' };
-            const { deleted, ...rest } = current;
-            updated.set(itemId, rest);
-            return updated;
-        });
-    }, []);
-
-    const handleAddProductToSale = useCallback(() => {
-        if (!editSelectedProduct) {
-            showNotice({ title: 'Error', message: 'Selecciona un producto', type: 'error' });
-            return;
-        }
-        const qty = parseInt(editAddQty || '1');
-        if (isNaN(qty) || qty < 1) {
-            showNotice({ title: 'Error', message: 'Cantidad debe ser >= 1', type: 'error' });
-            return;
-        }
-
-        // Check if product already exists in saleItems
-        const existing = saleItems.find(si => si.productId === editSelectedProduct.id);
-        if (existing) {
-            // Sum qty to existing item's draft
-            const draft = editedItems.get(existing.id) ?? { qty: '', price: '' };
-            const currentQty = draft.qty !== '' ? parseInt(draft.qty || '0') || existing.qty : existing.qty;
-            handleItemQtyChange(existing.id, (currentQty + qty).toString());
-        } else {
-            // Add as new temporary item with negative key
-            const tempKey = -Date.now();
-            setEditedItems(prev => {
-                const updated = new Map(prev);
-                updated.set(tempKey, {
-                    qty: qty.toString(),
-                    price: (editSelectedProduct.priceCents / 100).toString(),
-                    _newItem: true,
-                    _productId: editSelectedProduct.id,
-                    _productNameSnapshot: editSelectedProduct.name,
-                    _unitPriceSnapshotCents: editSelectedProduct.priceCents,
-                });
-                return updated;
-            });
-        }
-
-        setEditSelectedProduct(null);
-        setEditAddQty('1');
-    }, [editSelectedProduct, editAddQty, saleItems, editedItems, handleItemQtyChange]);
-
-    const handleQtyIncrement = useCallback((itemId: number) => {
-        const item = saleItems.find(i => i.id === itemId);
-        if (!item) return;
-        const draft = editedItems.get(itemId) ?? { qty: '', price: '' };
-        const currentQty = draft.qty !== '' ? parseInt(draft.qty || '0') || item.qty : item.qty;
-        handleItemQtyChange(itemId, (currentQty + 1).toString());
-    }, [saleItems, editedItems, handleItemQtyChange]);
-
-    const handleQtyDecrement = useCallback((itemId: number) => {
-        const item = saleItems.find(i => i.id === itemId);
-        if (!item) return;
-        const draft = editedItems.get(itemId) ?? { qty: '', price: '' };
-        const currentQty = draft.qty !== '' ? parseInt(draft.qty || '0') || item.qty : item.qty;
-        if (currentQty > 1) handleItemQtyChange(itemId, (currentQty - 1).toString());
-    }, [saleItems, editedItems, handleItemQtyChange]);
-
-    const editedTotalMain = useMemo(() => {
-        let total = 0;
-        for (const item of saleItems) {
-            const draft = editedItems.get(item.id) ?? { qty: '', price: '' };
-            if (draft.deleted) continue;
-            let qty = item.qty;
-            let price = item.unitPriceSnapshotCents;
-            if (draft.qty !== '') qty = parseInt(draft.qty) || 0;
-            if (draft.price !== '') price = parseMoneyToCents(draft.price);
-            total += qty * price;
-        }
-        // Include new temporary items
-        for (const [key, draft] of editedItems) {
-            if (key < 0 && (draft as any)._newItem) {
-                if (draft.deleted) continue;
-                const qty = parseInt(draft.qty) || 0;
-                const price = draft.price !== '' ? parseMoneyToCents(draft.price) : (draft as any)._unitPriceSnapshotCents;
-                total += qty * price;
-            }
-        }
-        return total;
-    }, [saleItems, editedItems]);
-
-    const handleSaveEdits = useCallback(async () => {
-        if (editErrors.size > 0 || !selectedSale) {
-            showNotice({ title: 'Error', message: 'Revisa los campos con errores', type: 'error' });
-            return;
-        }
-
-        try {
-            const edits: any[] = [];
-            for (const [itemId, draft] of editedItems) {
-                if (draft.deleted) edits.push({ type: 'delete', itemId });
-                else if ((draft as any)._newItem) {
-                    // New item to add
-                    edits.push({
-                        type: 'add',
-                        productId: (draft as any)._productId,
-                        productNameSnapshot: (draft as any)._productNameSnapshot,
-                        unitPriceSnapshotCents: draft.price !== '' ? parseMoneyToCents(draft.price) : (draft as any)._unitPriceSnapshotCents,
-                        qty: parseInt(draft.qty) || 1
-                    });
-                } else if (draft.qty !== '' || draft.price !== '') {
-                    const item = saleItems.find(i => i.id === itemId);
-                    if (!item) continue;
-                    edits.push({
-                        type: 'update',
-                        itemId,
-                        qty: draft.qty !== '' ? parseInt(draft.qty) : item.qty,
-                        unitPriceSnapshotCents: draft.price !== '' ? parseMoneyToCents(draft.price) : item.unitPriceSnapshotCents
-                    });
-                }
-            }
-
-            if (edits.length > 0) await salesRepo.applySaleEdits(selectedSale.id, edits);
-
-            const updatedItems = await salesRepo.getSaleItems(selectedSale.id);
-            setSaleItems(updatedItems);
-
-            if (updatedItems.length === 0) {
-                setDetailModalVisible(false);
-                await loadSales();
-            } else {
-                setIsEditMode(false);
-                setEditedItems(new Map());
-                await loadSales();
-                showNotice({ title: 'Éxito', message: 'Cambios guardados', type: 'success' });
-            }
-        } catch (e) {
-            showNotice({ title: 'Error', message: 'No se pudieron guardar los cambios', type: 'error' });
-        }
-    }, [editErrors, selectedSale, editedItems, saleItems, loadSales]);
-
-    const handleDeleteSale = useCallback(() => {
-        if (!selectedSale) return;
-        Alert.alert('Eliminar venta', 'No se puede deshacer. ¿Seguro?', [
-            { text: 'Cancelar' },
-            {
-                text: 'Eliminar',
-                style: 'destructive',
-                onPress: async () => {
-                    try {
-                        await salesRepo.deleteSale(selectedSale.id);
-                        setDetailModalVisible(false);
-                        await loadSales();
-                        showNotice({ title: 'Éxito', message: 'Venta eliminada', type: 'success' });
-                    } catch (e) {
-                        showNotice({ title: 'Error', message: 'No se pudo eliminar', type: 'error' });
-                    }
-                }
-            }
-        ]);
-    }, [selectedSale, loadSales]);
-
-    const handleOpenDetail = useCallback(async (sale: Sale) => {
-        try {
-            const items = await salesRepo.getSaleItems(sale.id);
-            setSaleItems(items);
-            setSelectedSale(sale);
-            setIsEditMode(false);
-            setEditedItems(new Map());
-            setDetailModalVisible(true);
-        } catch (e) {
-            showNotice({ title: 'Error', message: 'No se pudieron traer los detalles', type: 'error' });
-        }
-    }, []);
+    const {
+        sales,
+        loading,
+        currentDate,
+        showPicker,
+        setShowPicker,
+        selectedSale,
+        saleItems,
+        detailModalVisible,
+        setDetailModalVisible,
+        isEditMode,
+        editedItems,
+        editErrors,
+        editProducts,
+        editProductSelectorVisible,
+        setEditProductSelectorVisible,
+        editSelectedProduct,
+        setEditSelectedProduct,
+        editAddQty,
+        setEditAddQty,
+        editProductSearch,
+        setEditProductSearch,
+        itemsSummaryBySaleId,
+        editedTotalMain,
+        todayFlag,
+        yesterdayFlag,
+        handleQuickDate,
+        onPickerChange,
+        handleEditModeToggle,
+        handleItemQtyChange,
+        handleItemPriceChange,
+        handleDeleteItem,
+        handleRestoreItem,
+        handleAddProductToSale,
+        handleQtyIncrement,
+        handleQtyDecrement,
+        handleSaveEdits,
+        handleDeleteSale,
+        handleOpenDetail,
+        handleRefresh,
+    } = useHistoryScreen();
 
     const renderSaleItem = useCallback(({ item }: { item: Sale }) => (
         <SaleRow
@@ -474,13 +201,13 @@ export const HistoryScreen = () => {
         <View style={styles.filterSection}>
             <View style={styles.buttonRow}>
                 <TouchableOpacity
-                    style={[styles.filterBtn, formatDateShort(currentDate.getTime()) === formatDateShort(new Date().getTime()) && styles.activeFilter]}
+                    style={[styles.filterBtn, todayFlag && styles.activeFilter]}
                     onPress={() => handleQuickDate('today')}
                 >
                     <Text style={styles.filterBtnText}>Hoy</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                    style={[styles.filterBtn, formatDateShort(currentDate.getTime()) === formatDateShort(new Date().getTime() - 86400000) && styles.activeFilter]}
+                    style={[styles.filterBtn, yesterdayFlag && styles.activeFilter]}
                     onPress={() => handleQuickDate('yesterday')}
                 >
                     <Text style={styles.filterBtnText}>Ayer</Text>
@@ -502,7 +229,7 @@ export const HistoryScreen = () => {
                 />
             )}
         </View>
-    ), [currentDate, handleQuickDate, onPickerChange, showPicker]);
+    ), [currentDate, todayFlag, yesterdayFlag, showPicker, handleQuickDate, onPickerChange, setShowPicker]);
 
     return (
         <View style={[styles.container, { paddingTop: Math.max(insets.top, 10) + 4 }]}>
@@ -517,7 +244,7 @@ export const HistoryScreen = () => {
                     ItemSeparatorComponent={() => <View style={styles.separator} />}
                     contentContainerStyle={styles.listContent}
                     refreshing={loading}
-                    onRefresh={loadSales}
+                    onRefresh={handleRefresh}
 
                     // Perf optimizations
                     removeClippedSubviews={true}

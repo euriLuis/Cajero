@@ -1,5 +1,5 @@
 import { getDb } from '../db';
-import { Withdrawal } from '../../domain/models/Withdrawal';
+import { Withdrawal } from '../../shared/domain/models/Withdrawal';
 
 export const withdrawalsRepo = {
     async createWithdrawal(amountCents: number, reason?: string, createdAtMs?: number): Promise<void> {

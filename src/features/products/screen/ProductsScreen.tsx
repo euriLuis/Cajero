@@ -1,11 +1,11 @@
-import React, { useEffect, useState, useCallback, memo, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, Alert } from 'react-native';
-import { productsRepo } from '../../../data/repositories';
-import { Product } from '../../../domain/models/Product';
-import { formatCents, parseMoneyToCents } from '../../../utils/money';
-import { theme } from '../../theme';
-import { SoftCard, SoftSearchInput, SoftButton, SoftInput, useSoftNotice } from '../../components';
+import React, { memo, useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal } from 'react-native';
+import { Product } from '../../../shared/domain/models/Product';
+import { formatCents } from '../../../shared/utils/money';
+import { theme } from '../../../ui/theme';
+import { SoftCard, SoftSearchInput, SoftButton, SoftInput } from '../../../ui/components';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useProductsScreen } from '../hooks/useProductsScreen';
 
 const ProductRow = memo(({ product, onPress }: { product: Product; onPress: (p: Product) => void }) => (
     <TouchableOpacity onPress={() => onPress(product)} activeOpacity={0.9}>
@@ -18,86 +18,24 @@ const ProductRow = memo(({ product, onPress }: { product: Product; onPress: (p: 
 
 export const ProductsScreen = () => {
     const insets = useSafeAreaInsets();
-    const [products, setProducts] = useState<Product[]>([]);
-    const [search, setSearch] = useState('');
-    const [loading, setLoading] = useState(false);
-
-    const [modalVisible, setModalVisible] = useState(false);
-    const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-    const [formName, setFormName] = useState('');
-    const [formPrice, setFormPrice] = useState('');
-    const { showNotice } = useSoftNotice();
-
-    const loadProducts = useCallback(async (searchTerm: string) => {
-        setLoading(true);
-        try {
-            const list = await productsRepo.listActiveProducts(searchTerm);
-            setProducts(list);
-        } catch {
-            showNotice({ title: 'Error', message: 'No se pudieron cargar los productos', type: 'error' });
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => { loadProducts(''); }, [loadProducts]);
-
-    useEffect(() => {
-        const debounceTimer = setTimeout(() => loadProducts(search), 350);
-        return () => clearTimeout(debounceTimer);
-    }, [search, loadProducts]);
-
-    const handleOpenAdd = useCallback(() => {
-        setEditingProduct(null);
-        setFormName('');
-        setFormPrice('');
-        setModalVisible(true);
-    }, []);
-
-    const handleOpenEdit = useCallback((prod: Product) => {
-        setEditingProduct(prod);
-        setFormName(prod.name);
-        setFormPrice((prod.priceCents / 100).toString());
-        setModalVisible(true);
-    }, []);
-
-    const handleSave = useCallback(async () => {
-        if (!formName.trim()) {
-            showNotice({ title: 'Error', message: 'El nombre es requerido', type: 'error' });
-            return;
-        }
-        const priceCents = parseMoneyToCents(formPrice);
-
-        try {
-            if (editingProduct) await productsRepo.updateProduct(editingProduct.id, { name: formName, priceCents });
-            else await productsRepo.createProduct(formName, priceCents);
-
-            setModalVisible(false);
-            loadProducts(search);
-        } catch {
-            showNotice({ title: 'Error', message: 'No se pudo guardar el producto', type: 'error' });
-        }
-    }, [editingProduct, formName, formPrice, search, loadProducts]);
-
-    const handleDeactivate = useCallback(async () => {
-        if (!editingProduct) return;
-        Alert.alert('Confirmar', '¿Desea desactivar este producto?', [
-            { text: 'Cancelar', style: 'cancel' },
-            {
-                text: 'Desactivar',
-                style: 'destructive',
-                onPress: async () => {
-                    try {
-                        await productsRepo.deactivateProduct(editingProduct.id);
-                        setModalVisible(false);
-                        loadProducts(search);
-                    } catch {
-                        showNotice({ title: 'Error', message: 'No se pudo desactivar', type: 'error' });
-                    }
-                },
-            },
-        ]);
-    }, [editingProduct, search, loadProducts]);
+    const {
+        products,
+        search,
+        setSearch,
+        loading,
+        modalVisible,
+        setModalVisible,
+        editingProduct,
+        formName,
+        setFormName,
+        formPrice,
+        setFormPrice,
+        handleOpenAdd,
+        handleOpenEdit,
+        handleSave,
+        handleDeactivate,
+        handleRefresh,
+    } = useProductsScreen();
 
     const renderHeader = useMemo(() => (
         <View style={styles.headerContainer}>
@@ -111,7 +49,7 @@ export const ProductsScreen = () => {
                 <SoftButton label="＋ Agregar producto" onPress={handleOpenAdd} style={styles.addProductBtn} />
             </View>
         </View>
-    ), [search, handleOpenAdd]);
+    ), [search, setSearch, handleOpenAdd]);
 
     const renderItem = useCallback(({ item }: { item: Product }) => (
         <ProductRow product={item} onPress={handleOpenEdit} />
@@ -128,7 +66,7 @@ export const ProductsScreen = () => {
                 ListEmptyComponent={<Text style={styles.emptyText}>No hay productos</Text>}
                 contentContainerStyle={styles.listContent}
                 refreshing={loading}
-                onRefresh={() => loadProducts(search)}
+                onRefresh={handleRefresh}
                 removeClippedSubviews={true}
                 initialNumToRender={12}
                 maxToRenderPerBatch={12}

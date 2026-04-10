@@ -1,10 +1,10 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { ProductsScreen } from '../screens/Products/ProductsScreen';
-import { SaleScreen } from '../screens/Sale/SaleScreen';
-import { HistoryScreen } from '../screens/History/HistoryScreen';
-import { SummaryScreen } from '../screens/Summary/SummaryScreen';
-import { CashCounterScreen } from '../screens/CashCounter/CashCounterScreen';
+import { ProductsScreen } from '../../features/products/screen/ProductsScreen';
+import { SaleScreen } from '../../features/sales/screen/SaleScreen';
+import { HistoryScreen } from '../../features/history/screen/HistoryScreen';
+import { SummaryScreen } from '../../features/summary/screen/SummaryScreen';
+import { CashCounterScreen } from '../../features/cash/screen/CashCounterScreen';
 import { SoftTabBar } from '../components';
 
 const Tab = createBottomTabNavigator();

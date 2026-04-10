@@ -1,5 +1,6 @@
 import { getDb } from '../db/sqlite';
-import { getCurrentLocalDateStr } from '../../utils/dates';
+import { getCurrentLocalDateStr } from '../../shared/utils/dates';
+import { EMPTY_CASH_STATE, DEFAULT_DENOMS } from '../../features/cash/utils/cashCalculations';
 
 export interface CashMovement {
     id: number;
@@ -14,17 +15,6 @@ export interface CashState {
     denoms: Record<string, number>;
     updatedAt: string;
 }
-
-const EMPTY_CASH_STATE: Record<string, number> = {
-    "1000": 0,
-    "500": 0,
-    "200": 0,
-    "100": 0,
-    "50": 0,
-    "20": 0,
-    "10": 0,
-    "5": 0
-};
 
 export const cashRepo = {
     async getCashState(): Promise<CashState> {

@@ -1,6 +1,6 @@
 import { getDb } from '../db';
-import { Sale } from '../../domain/models/Sale';
-import { SaleItem } from '../../domain/models/SaleItem';
+import { Sale } from '../../shared/domain/models/Sale';
+import { SaleItem } from '../../shared/domain/models/SaleItem';
 
 export interface CreateSaleParams {
     items: {

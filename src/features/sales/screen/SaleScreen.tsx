@@ -1,250 +1,48 @@
-import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, Animated, Easing } from 'react-native';
-import { productsRepo, salesRepo } from '../../../data/repositories';
-import { Product } from '../../../domain/models/Product';
-import { formatCents } from '../../../utils/money';
-import { theme } from '../../theme';
-import { SoftInput, useSoftNotice } from '../../components';
-
-interface CartItem {
-    productId: number;
-    productNameSnapshot: string;
-    unitPriceSnapshotCents: number;
-    qty: number;
-}
-
-import { useFocusEffect } from '@react-navigation/native';
+import React, { useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, Animated } from 'react-native';
+import { Product } from '../../../shared/domain/models/Product';
+import { formatCents } from '../../../shared/utils/money';
+import { theme } from '../../../ui/theme';
+import { SoftInput } from '../../../ui/components';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { formatDateShort } from '../../../utils/dates';
+import { formatDateShort } from '../../../shared/utils/dates';
+import { useSaleScreen, CartItem } from '../hooks/useSaleScreen';
 
 export const SaleScreen = () => {
-    const [products, setProducts] = useState<Product[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [refreshing, setRefreshing] = useState(false);
-
-    // Date
-    const [selectedDate, setSelectedDate] = useState(new Date());
-    const [showDatePicker, setShowDatePicker] = useState(false);
-
-    // Product selector
-    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-    const [selectorModalVisible, setSelectorModalVisible] = useState(false);
-    const [selectorModalMounted, setSelectorModalMounted] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
-
-    // Quantity
-    const [quantity, setQuantity] = useState('1');
-    const [qtyError, setQtyError] = useState<string | null>(null);
-
-    // Cart
-    const [cart, setCart] = useState<CartItem[]>([]);
-    const [isSaving, setIsSaving] = useState(false);
     const insets = useSafeAreaInsets();
-    const { showNotice } = useSoftNotice();
+    const {
+        products,
+        loading,
+        refreshing,
+        selectedDate,
+        showDatePicker,
+        setShowDatePicker,
+        selectedProduct,
+        selectorModalVisible,
+        setSelectorModalVisible,
+        selectorModalMounted,
+        searchTerm,
+        setSearchTerm,
+        quantity,
+        qtyError,
+        cart,
+        isSaving,
+        filteredProducts,
+        totalCents,
+        overlayOpacity,
+        modalTranslateY,
+        handleDateChange,
+        handleSelectProduct,
+        handleQuantityChange,
+        handleAddToCart,
+        updateQty,
+        removeFromCart,
+        handleConfirmSale,
+        handleRefresh,
+    } = useSaleScreen();
 
-    const overlayOpacity = useRef(new Animated.Value(0)).current;
-    const modalTranslateY = useRef(new Animated.Value(380)).current;
-
-    useEffect(() => {
-        if (selectorModalVisible) {
-            setSelectorModalMounted(true);
-            overlayOpacity.setValue(0);
-            modalTranslateY.setValue(380);
-
-            Animated.parallel([
-                Animated.timing(overlayOpacity, {
-                    toValue: 1,
-                    duration: 130,
-                    easing: Easing.out(Easing.quad),
-                    useNativeDriver: true,
-                }),
-                Animated.timing(modalTranslateY, {
-                    toValue: 0,
-                    duration: 230,
-                    easing: Easing.out(Easing.cubic),
-                    useNativeDriver: true,
-                }),
-            ]).start();
-            return;
-        }
-
-        if (!selectorModalMounted) {
-            return;
-        }
-
-        Animated.parallel([
-            Animated.timing(overlayOpacity, {
-                toValue: 0,
-                duration: 90,
-                easing: Easing.in(Easing.quad),
-                useNativeDriver: true,
-            }),
-            Animated.timing(modalTranslateY, {
-                toValue: 380,
-                duration: 180,
-                easing: Easing.in(Easing.cubic),
-                useNativeDriver: true,
-            }),
-        ]).start(({ finished }) => {
-            if (finished) {
-                setSelectorModalMounted(false);
-            }
-        });
-    }, [selectorModalVisible, selectorModalMounted, overlayOpacity, modalTranslateY]);
-
-    const loadProducts = useCallback(async (isRefresh = false) => {
-        if (isRefresh) setRefreshing(true);
-        else setLoading(true);
-        try {
-            const list = await productsRepo.listActiveProducts();
-            setProducts(list);
-        } catch (e) {
-            showNotice({ title: 'Error', message: 'Error al cargar productos', type: 'error' });
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    }, []);
-
-    useFocusEffect(
-        useCallback(() => {
-            loadProducts();
-        }, [loadProducts])
-    );
-
-    const handleDateChange = (event: any, date?: Date) => {
-        setShowDatePicker(false);
-        if (date) {
-            setSelectedDate(date);
-        }
-    };
-
-    const handleSelectProduct = (product: Product) => {
-        setSelectedProduct(product);
-        setSelectorModalVisible(false);
-        setSearchTerm('');
-    };
-
-    const filteredProducts = useMemo(() => {
-        if (!searchTerm.trim()) return products;
-        const term = searchTerm.toLowerCase();
-        return products.filter(p => p.name.toLowerCase().includes(term));
-    }, [products, searchTerm]);
-
-    const validateQty = (qtyStr: string): { valid: boolean; error?: string; qty?: number } => {
-        if (qtyStr.trim() === '') {
-            return { valid: true, qty: 1 }; // Treat empty as 1
-        }
-        const qty = parseInt(qtyStr);
-        if (isNaN(qty)) {
-            return { valid: false, error: 'Cantidad debe ser un número' };
-        }
-        if (qty < 1) {
-            return { valid: false, error: 'Cantidad debe ser >= 1' };
-        }
-        return { valid: true, qty };
-    };
-
-    const handleQuantityChange = (text: string) => {
-        setQuantity(text);
-        const validation = validateQty(text);
-        setQtyError(validation.error || null);
-    };
-
-    const handleAddToCart = () => {
-        if (!selectedProduct) {
-            showNotice({ title: 'Error', message: 'Selecciona un producto', type: 'error' });
-            return;
-        }
-
-        const validation = validateQty(quantity);
-        if (!validation.valid) {
-            setQtyError(validation.error ?? null);
-            return;
-        }
-
-        const qty = validation.qty || 1;
-
-        setCart(prev => {
-            const existing = prev.find(item => item.productId === selectedProduct.id);
-            if (existing) {
-                return prev.map(item =>
-                    item.productId === selectedProduct.id
-                        ? { ...item, qty: item.qty + qty }
-                        : item
-                );
-            }
-            return [...prev, {
-                productId: selectedProduct.id,
-                productNameSnapshot: selectedProduct.name,
-                unitPriceSnapshotCents: selectedProduct.priceCents,
-                qty
-            }];
-        });
-
-        // Reset
-        setSelectedProduct(null);
-        setQuantity('1');
-        setQtyError(null);
-    };
-
-    const updateQty = (productId: number, delta: number) => {
-        setCart(prev => {
-            return prev.map(item => {
-                if (item.productId === productId) {
-                    const newQty = item.qty + delta;
-                    return newQty > 0 ? { ...item, qty: newQty } : item;
-                }
-                return item;
-            }).filter(item => item.qty > 0);
-        });
-    };
-
-    const removeFromCart = (productId: number) => {
-        setCart(prev => prev.filter(item => item.productId !== productId));
-    };
-
-    const totalCents = cart.reduce((sum, item) => sum + (item.unitPriceSnapshotCents * item.qty), 0);
-
-
-    useEffect(() => {
-        salesRepo.setCurrentSaleDraftTotal(totalCents);
-    }, [totalCents]);
-
-    const handleConfirmSale = async () => {
-        if (cart.length === 0) {
-            showNotice({ title: 'Carrito vacío', message: 'Añade productos antes de confirmar la venta', type: 'info' });
-            return;
-        }
-
-        if (isSaving) {
-            return; // Prevenir doble-click
-        }
-
-        setIsSaving(true);
-        try {
-            // Combine selected date with current time
-            const now = new Date();
-            const createdAt = new Date(selectedDate);
-            createdAt.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
-
-            await salesRepo.createSale({
-                items: cart,
-                createdAtMs: createdAt.getTime()
-            });
-            showNotice({ title: 'Venta registrada', message: 'La venta se guardó correctamente', type: 'success' });
-            setCart([]);
-            setSelectedDate(new Date());
-        } catch (e) {
-            showNotice({ title: 'Error', message: 'No se pudo registrar la venta', type: 'error' });
-            // NO limpiar carrito en caso de error
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-    const renderCartItem = ({ item }: { item: CartItem }) => (
+    const renderCartItem = useCallback(({ item }: { item: CartItem }) => (
         <View style={styles.cartItem}>
             <View style={styles.cartItemInfo}>
                 <Text style={styles.cartItemName}>{item.productNameSnapshot}</Text>
@@ -253,23 +51,23 @@ export const SaleScreen = () => {
                 </Text>
             </View>
             <View style={styles.cartItemControls}>
-                <TouchableOpacity 
-                    onPress={() => updateQty(item.productId, -1)} 
+                <TouchableOpacity
+                    onPress={() => updateQty(item.productId, -1)}
                     style={styles.qtyBtn}
                     disabled={isSaving}
                 >
                     <Text style={styles.qtyBtnText}>-</Text>
                 </TouchableOpacity>
                 <Text style={styles.qtyText}>{item.qty}</Text>
-                <TouchableOpacity 
-                    onPress={() => updateQty(item.productId, 1)} 
+                <TouchableOpacity
+                    onPress={() => updateQty(item.productId, 1)}
                     style={styles.qtyBtn}
                     disabled={isSaving}
                 >
                     <Text style={styles.qtyBtnText}>+</Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
-                    onPress={() => removeFromCart(item.productId)} 
+                <TouchableOpacity
+                    onPress={() => removeFromCart(item.productId)}
                     style={styles.removeBtn}
                     disabled={isSaving}
                 >
@@ -277,14 +75,14 @@ export const SaleScreen = () => {
                 </TouchableOpacity>
             </View>
         </View>
-    );
+    ), [isSaving, updateQty, removeFromCart]);
 
-    const renderProductInModal = ({ item }: { item: Product }) => (
+    const renderProductInModal = useCallback(({ item }: { item: Product }) => (
         <TouchableOpacity style={styles.modalProductItem} onPress={() => handleSelectProduct(item)}>
             <Text style={styles.modalProductName}>{item.name}</Text>
             <Text style={styles.modalProductPrice}>{formatCents(item.priceCents)}</Text>
         </TouchableOpacity>
-    );
+    ), [handleSelectProduct]);
 
     return (
         <View style={[styles.container, { paddingTop: Math.max(insets.top, 10) + 4 }]}>
@@ -365,7 +163,7 @@ export const SaleScreen = () => {
                     contentContainerStyle={styles.cartListContent}
                     style={styles.cartList}
                     refreshing={refreshing}
-                    onRefresh={() => loadProducts(true)}
+                    onRefresh={handleRefresh}
                 />
             </View>
 
@@ -421,7 +219,7 @@ export const SaleScreen = () => {
                                 </Text>
                             }
                             refreshing={refreshing}
-                            onRefresh={() => loadProducts(true)}
+                            onRefresh={handleRefresh}
                         />
                     </Animated.View>
                 </Animated.View>
