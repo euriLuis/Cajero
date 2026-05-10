@@ -1,0 +1,9 @@
+.expo/
+.qwen/
+.test-build/
+tests/
+docs/
+*.tsbuildinfo
+npm-debug.*
+yarn-debug.*
+yarn-error.*

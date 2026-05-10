@@ -1,15 +1,15 @@
 import React, { memo, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, useWindowDimensions } from 'react-native';
 import { Sale } from '../../../shared/domain/models/Sale';
 import { SaleItem } from '../../../shared/domain/models/SaleItem';
 import { formatCents, parseMoneyToCents } from '../../../shared/utils/money';
-import { getDayRangeMs, formatDateShort, formatTimeNoSeconds, formatDateTimeWithSeconds } from '../../../shared/utils/dates';
+import { formatDateShort, formatTimeNoSeconds, formatDateTimeWithSeconds } from '../../../shared/utils/dates';
 import { theme } from '../../../ui/theme';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SoftInput } from '../../../ui/components';
 import { useFloatingTabBarClearance } from '../../../ui/navigation/safeAreaMetrics';
-import { useHistoryScreen, EditDraft } from '../hooks/useHistoryScreen';
+import { useHistoryScreen } from '../hooks/useHistoryScreen';
 
 // 2) Optimized Row Components
 const SaleRow = memo(({
@@ -29,7 +29,7 @@ const SaleRow = memo(({
                 {summary || '…'}
             </Text>
         </View>
-        <Text style={styles.saleTotal}>{formatCents(item.totalCents)}</Text>
+        <Text style={styles.saleTotal} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{formatCents(item.totalCents)}</Text>
     </TouchableOpacity>
 ));
 
@@ -66,7 +66,7 @@ const SaleDetailItemRow = memo(({
             {!isEditMode ? (
                 <>
                     <View style={styles.itemNameCol}>
-                        <Text style={styles.itemNameSnp}>{item.productNameSnapshot}</Text>
+                        <Text style={styles.itemNameSnp} numberOfLines={1}>{item.productNameSnapshot}</Text>
                         <Text style={styles.itemPriceSnp}>{formatCents(item.unitPriceSnapshotCents)} c/u</Text>
                     </View>
                     <View style={styles.itemQtyCol}>
@@ -148,6 +148,8 @@ const SaleDetailItemRow = memo(({
 
 export const HistoryScreen = () => {
     const insets = useSafeAreaInsets();
+    const { width } = useWindowDimensions();
+    const isCompact = width < 390;
     const bottomClearance = useFloatingTabBarClearance(theme.spacing.md);
     const {
         sales,
@@ -198,6 +200,12 @@ export const HistoryScreen = () => {
             onOpenDetail={handleOpenDetail}
         />
     ), [itemsSummaryBySaleId, handleOpenDetail]);
+
+    const filteredEditProducts = useMemo(() => {
+        const term = editProductSearch.trim().toLowerCase();
+        if (!term) return editProducts;
+        return editProducts.filter(p => p.name.toLowerCase().includes(term));
+    }, [editProducts, editProductSearch]);
 
     const renderHeader = useMemo(() => (
         <View style={styles.filterSection}>
@@ -262,11 +270,11 @@ export const HistoryScreen = () => {
                 animationType="fade"
                 onRequestClose={() => setDetailModalVisible(false)}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <View style={styles.modalHeader}>
+                <View style={[styles.modalOverlay, isCompact && styles.modalOverlayCompact]}>
+                    <View style={[styles.modalContent, isCompact && styles.modalContentCompact]}>
+                        <View style={[styles.modalHeader, isCompact && styles.modalHeaderCompact]}>
                             <Text style={styles.modalTitle}>Detalle de Venta</Text>
-                            <View style={styles.modalHeaderActions}>
+                            <View style={[styles.modalHeaderActions, isCompact && styles.modalHeaderActionsCompact]}>
                                 <TouchableOpacity style={[styles.headerBtn, styles.headerEditBtn]} onPress={handleEditModeToggle}>
                                     <Text style={styles.headerBtnText}>✏️ Editar</Text>
                                 </TouchableOpacity>
@@ -308,7 +316,11 @@ export const HistoryScreen = () => {
                             )}
                             ItemSeparatorComponent={() => <View style={styles.separator} />}
                             style={styles.itemsList}
+                            removeClippedSubviews={true}
                             initialNumToRender={8}
+                            maxToRenderPerBatch={8}
+                            updateCellsBatchingPeriod={50}
+                            windowSize={5}
                         />
 
                         {isEditMode && (
@@ -320,14 +332,14 @@ export const HistoryScreen = () => {
                                     style={styles.addProductSelector}
                                     onPress={() => setEditProductSelectorVisible(true)}
                                 >
-                                    <Text style={editSelectedProduct ? styles.addProductSelectorSelected : styles.addProductSelectorPlaceholder}>
+                                    <Text style={editSelectedProduct ? styles.addProductSelectorSelected : styles.addProductSelectorPlaceholder} numberOfLines={1}>
                                         {editSelectedProduct ? editSelectedProduct.name : 'Seleccionar producto...'}
                                     </Text>
                                     <Text style={styles.addProductSelectorArrow}>▼</Text>
                                 </TouchableOpacity>
 
                                 {/* Qty + Add Button Row */}
-                                <View style={styles.addProductRow}>
+                                <View style={[styles.addProductRow, isCompact && styles.addProductRowCompact]}>
                                     <SoftInput
                                         containerStyle={styles.addProductQtyInput}
                                         size="compact"
@@ -371,9 +383,7 @@ export const HistoryScreen = () => {
                                             </View>
 
                                             <FlatList
-                                                data={editProductSearch.trim()
-                                                    ? editProducts.filter(p => p.name.toLowerCase().includes(editProductSearch.toLowerCase()))
-                                                    : editProducts}
+                                                data={filteredEditProducts}
                                                 keyExtractor={item => item.id.toString()}
                                                 renderItem={({ item }) => (
                                                     <TouchableOpacity
@@ -384,8 +394,8 @@ export const HistoryScreen = () => {
                                                             setEditProductSearch('');
                                                         }}
                                                     >
-                                                        <Text style={styles.productSelectorItemName}>{item.name}</Text>
-                                                        <Text style={styles.productSelectorItemPrice}>{formatCents(item.priceCents)}</Text>
+                                                        <Text style={styles.productSelectorItemName} numberOfLines={1}>{item.name}</Text>
+                                                        <Text style={styles.productSelectorItemPrice} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78}>{formatCents(item.priceCents)}</Text>
                                                     </TouchableOpacity>
                                                 )}
                                                 ItemSeparatorComponent={() => <View style={styles.productSelectorSeparator} />}
@@ -395,6 +405,11 @@ export const HistoryScreen = () => {
                                                         {editProductSearch.trim() ? 'No se encontraron productos' : 'No hay productos disponibles'}
                                                     </Text>
                                                 }
+                                                removeClippedSubviews={true}
+                                                initialNumToRender={10}
+                                                maxToRenderPerBatch={10}
+                                                updateCellsBatchingPeriod={50}
+                                                windowSize={5}
                                             />
                                         </View>
                                     </View>
@@ -403,7 +418,7 @@ export const HistoryScreen = () => {
                         )}
 
                         {isEditMode && (
-                            <View style={styles.actionButtonsContainer}>
+                            <View style={[styles.actionButtonsContainer, isCompact && styles.actionButtonsContainerCompact]}>
                                 <TouchableOpacity
                                     style={[styles.actionBtn, styles.saveBtn, editErrors.size > 0 && styles.actionBtnDisabled]}
                                     onPress={handleSaveEdits}
@@ -435,18 +450,22 @@ const styles = StyleSheet.create({
     dateSelectorText: { fontWeight: '600' },
     listContent: { paddingBottom: 20 },
     saleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15 },
-    saleInfo: { flex: 1 },
+    saleInfo: { flex: 1, minWidth: 0 },
     saleTime: { fontWeight: 'bold', fontSize: 16 },
     saleDate: { color: '#888', fontSize: 12 },
     saleSummary: { color: '#888', fontSize: 12, marginTop: 2 },
-    saleTotal: { fontWeight: 'bold', color: theme.colors.primary, fontSize: 16 },
+    saleTotal: { fontWeight: 'bold', color: theme.colors.primary, fontSize: 16, maxWidth: '42%', textAlign: 'right' },
     separator: { height: 1, backgroundColor: '#EEE' },
     emptyText: { textAlign: 'center', color: '#888', padding: 40 },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
+    modalOverlayCompact: { padding: 10 },
     modalContent: { backgroundColor: '#FFF', borderRadius: 12, maxHeight: '90%', overflow: 'hidden' },
+    modalContentCompact: { maxHeight: '94%' },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: '#EEE' },
+    modalHeaderCompact: { flexDirection: 'column', alignItems: 'stretch', gap: 8 },
     modalTitle: { fontSize: 18, fontWeight: 'bold' },
     modalHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    modalHeaderActionsCompact: { justifyContent: 'flex-end', gap: 6, flexShrink: 0 },
     headerBtn: { padding: 6, borderRadius: 6 },
     headerEditBtn: { backgroundColor: theme.colors.primary },
     headerDeleteBtn: { backgroundColor: '#FF5252' },
@@ -458,7 +477,7 @@ const styles = StyleSheet.create({
     itemsList: { maxHeight: 400 },
     itemRow: { padding: 15 },
     itemNameCol: { flex: 1 },
-    itemNameSnp: { fontWeight: 'bold', fontSize: 15 },
+    itemNameSnp: { fontWeight: 'bold', fontSize: 15, flexShrink: 1 },
     itemPriceSnp: { color: '#888', fontSize: 12 },
     itemQtyCol: { alignItems: 'flex-end' },
     itemQtyText: { fontWeight: 'bold' },
@@ -485,6 +504,7 @@ const styles = StyleSheet.create({
     editSubtotal: { marginTop: 10, alignItems: 'flex-end' },
     editSubtotalValue: { fontWeight: 'bold', color: theme.colors.primary, fontSize: 16 },
     actionButtonsContainer: { flexDirection: 'row', padding: 15, gap: 10, borderTopWidth: 1, borderTopColor: '#EEE' },
+    actionButtonsContainerCompact: { flexDirection: 'column', padding: 12 },
     actionBtn: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center' },
     actionBtnDisabled: { opacity: 0.55 },
     saveBtn: { backgroundColor: theme.colors.primary },
@@ -504,6 +524,7 @@ const styles = StyleSheet.create({
     addProductSelectorPlaceholder: { fontSize: 14, color: '#999', flex: 1 },
     addProductSelectorArrow: { fontSize: 11, color: '#999', fontWeight: '600' },
     addProductRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+    addProductRowCompact: { alignItems: 'stretch' },
     addProductQtyInput: { width: 75 },
     addProductBtn: { flex: 1, backgroundColor: theme.colors.primary, paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
     addProductBtnDisabled: { opacity: 0.5 },

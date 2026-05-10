@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "rootDir": ".",
+    "outDir": ".test-build"
+  },
+  "include": [
+    "src/data/db/**/*.ts",
+    "src/data/repositories/**/*.ts",
+    "src/shared/utils/**/*.ts",
+    "src/features/shared/utils/**/*.ts",
+    "src/features/cash/utils/**/*.ts",
+    "src/features/sales/utils/**/*.ts",
+    "src/features/summary/utils/**/*.ts"
+  ]
+}

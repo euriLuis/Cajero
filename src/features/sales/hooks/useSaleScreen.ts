@@ -3,7 +3,7 @@ import { Animated, Easing } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { productsRepo, salesRepo } from '../../../data/repositories';
 import { Product } from '../../../shared/domain/models/Product';
-import { useSoftNotice } from '../../../ui/components';
+import { useErrorReporter, useSoftNotice } from '../../../ui/components';
 import { validateQuantity } from '../../shared/utils/validation';
 import { calculateCartTotal, addToCart, updateCartQty, removeFromCart as removeCartItem, combineDateWithCurrentTime, CartItem } from '../utils/cartCalculations';
 
@@ -11,7 +11,6 @@ export { CartItem };
 
 export function useSaleScreen() {
     const [products, setProducts] = useState<Product[]>([]);
-    const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
 
     const [selectedDate, setSelectedDate] = useState(new Date());
@@ -31,10 +30,13 @@ export function useSaleScreen() {
     const overlayOpacity = useRef(new Animated.Value(0)).current;
     const modalTranslateY = useRef(new Animated.Value(380)).current;
     const { showNotice } = useSoftNotice();
+    const { reportError } = useErrorReporter();
 
     // Modal animation
     useEffect(() => {
         if (selectorModalVisible) {
+            if (selectorModalMounted) return;
+
             setSelectorModalMounted(true);
             overlayOpacity.setValue(0);
             modalTranslateY.setValue(380);
@@ -78,17 +80,22 @@ export function useSaleScreen() {
 
     const loadProducts = useCallback(async (isRefresh = false) => {
         if (isRefresh) setRefreshing(true);
-        else setLoading(true);
         try {
             const list = await productsRepo.listActiveProducts();
             setProducts(list);
-        } catch {
+        } catch (error) {
             showNotice({ title: 'Error', message: 'Error al cargar productos', type: 'error' });
+            reportError({
+                title: 'Error cargando productos para venta',
+                message: 'Error al cargar productos',
+                source: 'Venta / Cargar productos',
+                error,
+                reproductionSteps: 'Abrir la seccion Venta o refrescar la lista de productos.',
+            });
         } finally {
-            setLoading(false);
             setRefreshing(false);
         }
-    }, [showNotice]);
+    }, [showNotice, reportError]);
 
     useFocusEffect(useCallback(() => {
         loadProducts();
@@ -179,24 +186,29 @@ export function useSaleScreen() {
             showNotice({ title: 'Venta registrada', message: 'La venta se guardó correctamente', type: 'success' });
             setCart([]);
             setSelectedDate(new Date());
-        } catch {
+        } catch (error) {
             showNotice({ title: 'Error', message: 'No se pudo registrar la venta', type: 'error' });
+            reportError({
+                title: 'Error registrando venta',
+                message: 'No se pudo registrar la venta',
+                source: 'Venta / Confirmar',
+                error,
+                reproductionSteps: 'Abrir Venta, agregar productos al carrito y tocar Confirmar.',
+                details: `Items: ${cart.length} | Total: ${totalCents} centavos | Fecha: ${selectedDate.toISOString()}`,
+            });
         } finally {
             setIsSaving(false);
         }
-    }, [cart, selectedDate, isSaving, showNotice]);
+    }, [cart, selectedDate, isSaving, showNotice, reportError, totalCents]);
 
     const handleRefresh = useCallback(() => loadProducts(true), [loadProducts]);
 
     return {
-        products,
-        loading,
         refreshing,
         selectedDate,
         showDatePicker,
         setShowDatePicker,
         selectedProduct,
-        selectorModalVisible,
         setSelectorModalVisible,
         selectorModalMounted,
         searchTerm,

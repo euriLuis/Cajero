@@ -216,8 +216,7 @@ export const salesRepo = {
                 }
             }
 
-            // Recalculate total
-            const newTotal = await salesRepo.recalcSaleTotal(saleId);
+            await salesRepo.recalcSaleTotal(saleId);
 
             // Check if there are any items left
             const itemCount = await db.getFirstAsync<any>(

@@ -43,21 +43,6 @@ export const validateMonetaryAmount = (amountStr: string, parseFn: (s: string) =
 };
 
 /**
- * Validate an item price in edit mode: must be non-negative cents.
- * Empty string is valid (means "use original value").
- */
-export const validateEditPrice = (priceStr: string, parseFn: (s: string) => number): ValidationResult<number> | null => {
-    if (priceStr === '') {
-        return null; // No change, valid
-    }
-    const cents = parseFn(priceStr);
-    if (isNaN(cents) || cents < 0) {
-        return { valid: false, error: 'Precio inválido' };
-    }
-    return { valid: true, value: cents };
-};
-
-/**
  * Resolve a draft qty string to the effective number.
  * If draft is empty, falls back to the original value.
  */
@@ -73,12 +58,3 @@ export const resolveDraftPrice = (draftPrice: string, originalCents: number, par
     return draftPrice !== '' ? parseFn(draftPrice) : originalCents;
 };
 
-/**
- * Check if a parsed integer is a valid positive quantity >= 1.
- */
-export const isValidPositiveInt = (val: number): boolean => !isNaN(val) && val >= 1;
-
-/**
- * Check if a parsed cents value is valid (non-negative).
- */
-export const isValidNonNegativeCents = (cents: number): boolean => !isNaN(cents) && cents >= 0;

@@ -1,6 +1,6 @@
 import { getDb } from '../db/sqlite';
 import { getCurrentLocalDateStr } from '../../shared/utils/dates';
-import { EMPTY_CASH_STATE, DEFAULT_DENOMS } from '../../features/cash/utils/cashCalculations';
+import { EMPTY_CASH_STATE } from '../../features/cash/utils/cashCalculations';
 
 export interface CashMovement {
     id: number;

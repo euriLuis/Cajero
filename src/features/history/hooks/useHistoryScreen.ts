@@ -7,9 +7,9 @@ import { SaleItem } from '../../../shared/domain/models/SaleItem';
 import { Product } from '../../../shared/domain/models/Product';
 import { getDayRangeMs } from '../../../shared/utils/dates';
 import { parseMoneyToCents } from '../../../shared/utils/money';
-import { useSoftNotice } from '../../../ui/components';
+import { useErrorReporter, useSoftNotice } from '../../../ui/components';
 import { isToday, isYesterday } from '../../shared/utils/dateComparisons';
-import { validateQuantity, validateEditPrice, resolveDraftQty, resolveDraftPrice } from '../../shared/utils/validation';
+import { validateQuantity, resolveDraftQty, resolveDraftPrice } from '../../shared/utils/validation';
 
 export type EditDraft = {
     qty: string;
@@ -43,6 +43,7 @@ export function useHistoryScreen() {
 
     const [itemsSummaryBySaleId, setItemsSummaryBySaleId] = useState<Record<number, string>>({});
     const { showNotice } = useSoftNotice();
+    const { reportError } = useErrorReporter();
 
     const loadSales = useCallback(async () => {
         setLoading(true);
@@ -58,12 +59,20 @@ export function useHistoryScreen() {
             } else {
                 setItemsSummaryBySaleId({});
             }
-        } catch {
+        } catch (error) {
             showNotice({ title: 'Error', message: 'No se pudieron cargar las ventas', type: 'error' });
+            reportError({
+                title: 'Error cargando ventas',
+                message: 'No se pudieron cargar las ventas del historial.',
+                source: 'Historial / Cargar ventas',
+                error,
+                reproductionSteps: 'Abrir la pestana Historial o cambiar la fecha seleccionada.',
+                details: `Fecha seleccionada: ${currentDate.toISOString()}`,
+            });
         } finally {
             setLoading(false);
         }
-    }, [currentDate, showNotice]);
+    }, [currentDate, showNotice, reportError]);
 
     useFocusEffect(useCallback(() => {
         loadSales();
@@ -100,9 +109,19 @@ export function useHistoryScreen() {
             setEditedItems(initialDraft);
             setEditErrors(new Map());
             setIsEditMode(true);
-            productsRepo.listActiveProducts().then(setEditProducts).catch(() => { });
+            productsRepo.listActiveProducts().then(setEditProducts).catch((error) => {
+                showNotice({ title: 'Error', message: 'No se pudieron cargar productos para editar', type: 'error' });
+                reportError({
+                    title: 'Error cargando productos',
+                    message: 'No se pudieron cargar los productos para editar la venta.',
+                    source: 'Historial / Editar venta',
+                    error,
+                    reproductionSteps: 'Abrir el detalle de una venta y tocar Editar.',
+                    details: `Venta seleccionada: ${selectedSale?.id ?? 'sin venta'}`,
+                });
+            });
         }
-    }, [isEditMode, saleItems, showNotice]);
+    }, [isEditMode, saleItems, selectedSale, showNotice, reportError]);
 
     const handleItemQtyChange = useCallback((itemId: number, qty: string) => {
         setEditedItems(prev => {
@@ -276,10 +295,18 @@ export function useHistoryScreen() {
                 await loadSales();
                 showNotice({ title: 'Éxito', message: 'Cambios guardados', type: 'success' });
             }
-        } catch {
+        } catch (error) {
             showNotice({ title: 'Error', message: 'No se pudieron guardar los cambios', type: 'error' });
+            reportError({
+                title: 'Error guardando cambios',
+                message: 'No se pudieron guardar los cambios de la venta.',
+                source: 'Historial / Guardar cambios',
+                error,
+                reproductionSteps: 'Abrir una venta del historial, tocar Editar, modificar cantidades o precios y guardar.',
+                details: `Venta seleccionada: ${selectedSale?.id ?? 'sin venta'}; cambios enviados: ${editedItems.size}`,
+            });
         }
-    }, [editErrors, selectedSale, editedItems, saleItems, loadSales, showNotice]);
+    }, [editErrors, selectedSale, editedItems, saleItems, loadSales, showNotice, reportError]);
 
     const handleDeleteSale = useCallback(() => {
         if (!selectedSale) return;
@@ -294,13 +321,21 @@ export function useHistoryScreen() {
                         setDetailModalVisible(false);
                         await loadSales();
                         showNotice({ title: 'Éxito', message: 'Venta eliminada', type: 'success' });
-                    } catch {
+                    } catch (error) {
                         showNotice({ title: 'Error', message: 'No se pudo eliminar', type: 'error' });
+                        reportError({
+                            title: 'Error eliminando venta',
+                            message: 'No se pudo eliminar la venta seleccionada.',
+                            source: 'Historial / Eliminar venta',
+                            error,
+                            reproductionSteps: 'Abrir el detalle de una venta, tocar Eliminar y confirmar la accion.',
+                            details: `Venta seleccionada: ${selectedSale.id}`,
+                        });
                     }
                 }
             }
         ]);
-    }, [selectedSale, loadSales, showNotice]);
+    }, [selectedSale, loadSales, showNotice, reportError]);
 
     const handleOpenDetail = useCallback(async (sale: Sale) => {
         try {
@@ -310,10 +345,18 @@ export function useHistoryScreen() {
             setIsEditMode(false);
             setEditedItems(new Map());
             setDetailModalVisible(true);
-        } catch {
+        } catch (error) {
             showNotice({ title: 'Error', message: 'No se pudieron traer los detalles', type: 'error' });
+            reportError({
+                title: 'Error cargando detalle',
+                message: 'No se pudieron traer los detalles de la venta.',
+                source: 'Historial / Detalle de venta',
+                error,
+                reproductionSteps: 'Abrir la pestana Historial y tocar una venta para ver sus detalles.',
+                details: `Venta seleccionada: ${sale.id}`,
+            });
         }
-    }, [showNotice]);
+    }, [showNotice, reportError]);
 
     const handleRefresh = useCallback(() => loadSales(), [loadSales]);
 

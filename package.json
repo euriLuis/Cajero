@@ -8,6 +8,8 @@
     "start:tunnel": "expo start --tunnel --clear",
     "start:localhost": "expo start --localhost --clear",
     "android": "expo start --android",
+    "test": "npm run test:unit",
+    "test:unit": "tsc -p tsconfig.test.json && node tests/unit.test.js && node tests/repositories.test.js",
     "build:apk": "eas build --platform android --profile preview"
   },
   "dependencies": {

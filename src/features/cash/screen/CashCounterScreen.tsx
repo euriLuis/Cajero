@@ -6,20 +6,29 @@ import {
     FlatList,
     KeyboardAvoidingView,
     Platform,
-    Alert,
     StyleSheet,
     TouchableOpacity,
     ActivityIndicator,
     Modal,
+    useWindowDimensions,
 } from 'react-native';
-import { AppScreen, AppButton, SoftCard, SoftButton, SoftInput, useSoftNotice } from '../../../ui/components';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SoftCard, SoftButton, SoftInput } from '../../../ui/components';
 import { theme, radius } from '../../../ui/theme';
 import { useFloatingTabBarClearance } from '../../../ui/navigation/safeAreaMetrics';
 import { formatCents } from '../../../shared/utils/money';
-import { getDayRangeMs, formatDateTimeWithSeconds, formatTimeNoSeconds, formatDateShort } from '../../../shared/utils/dates';
+import { formatDateTimeWithSeconds, formatTimeNoSeconds } from '../../../shared/utils/dates';
 import { useCashCounterScreen } from '../hooks/useCashCounterScreen';
 import { CashMovement } from '../../../data/repositories/cashRepo';
 import { DEFAULT_DENOMS } from '../utils/cashCalculations';
+
+const counterRadius = {
+    xs: Math.round(radius.xs * 0.7),
+    sm: Math.round(radius.sm * 0.7),
+    md: Math.round(radius.md * 0.7),
+    lg: Math.round(radius.lg * 0.7),
+    card: Math.round(radius.card * 0.7),
+};
 
 type MovementListRow =
     | { type: 'day'; key: string; dayLabel: string }
@@ -51,7 +60,7 @@ const MovementRow = memo(({
                 </Text>
             </View>
             <View style={styles.movAmountCol}>
-                <Text style={[styles.movAmountText, item.type === 'IN' ? styles.positive : styles.negative]}>
+                <Text style={[styles.movAmountText, item.type === 'IN' ? styles.positive : styles.negative]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                     {item.type === 'IN' ? '+' : '-'}{formatCents(item.total_cents)}
                 </Text>
             </View>
@@ -171,14 +180,14 @@ const BalanceComparisonCard = memo(({
 });
 
 export const CashCounterScreen = () => {
+    const insets = useSafeAreaInsets();
+    const { width } = useWindowDimensions();
+    const isCompact = width < 390;
     const bottomClearance = useFloatingTabBarClearance(theme.spacing.md);
     const {
         quantities,
         cashState,
-        movements,
-        totalSalesToday,
         salesTabTotal,
-        totalWithdrawalsToday,
         loading,
         refreshing,
         deletingId,
@@ -186,7 +195,6 @@ export const CashCounterScreen = () => {
         detailModalVisible,
         setDetailModalVisible,
         inputRefs,
-        DENOMS,
         totalContadoCents,
         diffConteoVsVentas,
         totalStoredCents,
@@ -261,10 +269,10 @@ export const CashCounterScreen = () => {
                 ))}
             </SoftCard>
 
-            <View style={styles.buttonRow}>
-                <SoftButton label="AGREGAR" onPress={() => handleApplyMovement('IN')} style={styles.btnAction} />
-                <SoftButton label="RESTAR" variant="danger" onPress={() => handleApplyMovement('OUT')} style={styles.btnAction} />
-                <SoftButton label="RESET" variant="ghost" onPress={handleResetDraft} style={styles.btnAction} />
+            <View style={[styles.buttonRow, isCompact && styles.buttonRowCompact]}>
+                <SoftButton label="AGREGAR" onPress={() => handleApplyMovement('IN')} style={[styles.btnAction, isCompact && styles.btnActionCompact]} />
+                <SoftButton label="RESTAR" variant="danger" onPress={() => handleApplyMovement('OUT')} style={[styles.btnAction, isCompact && styles.btnActionCompact]} />
+                <SoftButton label="RESET" variant="ghost" onPress={handleResetDraft} style={[styles.btnAction, isCompact && styles.btnActionCompact]} />
             </View>
 
             <BalanceComparisonCard
@@ -314,22 +322,22 @@ export const CashCounterScreen = () => {
         totalStoredCents,
         diffStoredVsSummary,
         cashState,
-        DENOMS,
         inputRefs,
+        isCompact,
     ]);
 
     if (loading && !refreshing) {
         return (
-            <AppScreen>
+            <View style={[styles.screen, { paddingTop: Math.max(insets.top, 10) + 4 }]}>
                 <View style={styles.centerContent}>
                     <ActivityIndicator size="large" color={theme.colors.primary} />
                 </View>
-            </AppScreen>
+            </View>
         );
     }
 
     return (
-        <AppScreen>
+        <View style={[styles.screen, { paddingTop: Math.max(insets.top, 10) + 4 }]}>
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -405,67 +413,70 @@ export const CashCounterScreen = () => {
 
                             <View style={styles.modalActions}>
                                 <SoftButton label="Eliminar Movimiento" variant="danger" onPress={handleDeleteMovement} style={styles.btnDelete} />
-                                <AppButton label="Cerrar" onPress={() => setDetailModalVisible(false)} variant="secondary" />
+                                <SoftButton label="Cerrar" onPress={() => setDetailModalVisible(false)} variant="ghost" />
                             </View>
                         </View>
                     </View>
                 </Modal>
             </KeyboardAvoidingView>
-        </AppScreen>
+        </View>
     );
 };
 
 const styles = StyleSheet.create({
+    screen: { flex: 1, backgroundColor: theme.colors.background, paddingHorizontal: theme.spacing.base },
     centerContent: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     listContent: { paddingHorizontal: 6, paddingTop: theme.spacing.md, paddingBottom: 100 },
     headerContainer: { marginBottom: 10 },
-    summaryCard: { padding: 10, marginBottom: 10, borderLeftWidth: 4, borderLeftColor: theme.colors.primary },
-    balanceTitle: { fontSize: 11, fontWeight: '700', color: theme.colors.text, marginBottom: 4 },
-    summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 },
-    summaryLabel: { fontSize: 12, color: theme.colors.mutedText },
-    summaryValue: { fontSize: 12, fontWeight: '600', color: theme.colors.text },
+    summaryCard: { paddingVertical: 7.5, paddingHorizontal: 9, marginBottom: 8, borderRadius: counterRadius.card, borderLeftWidth: 4, borderLeftColor: theme.colors.primary },
+    balanceTitle: { fontSize: 10, fontWeight: '700', color: theme.colors.text, marginBottom: 3 },
+    summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 1 },
+    summaryLabel: { fontSize: 11, color: theme.colors.mutedText },
+    summaryValue: { fontSize: 11, fontWeight: '600', color: theme.colors.text },
     summaryLabelBold: { fontSize: 13, fontWeight: 'bold', color: theme.colors.text },
-    expectedBalanceText: { fontSize: 11, color: theme.colors.mutedText },
-    expectedBalanceValue: { fontSize: 11, fontWeight: '700', color: theme.colors.text },
-    diffBorder: { marginTop: 4, paddingTop: 4, borderTopWidth: 1, borderTopColor: theme.colors.border },
+    expectedBalanceText: { fontSize: 10, color: theme.colors.mutedText },
+    expectedBalanceValue: { fontSize: 10, fontWeight: '700', color: theme.colors.text },
+    diffBorder: { marginTop: 3, paddingTop: 3, borderTopWidth: 1, borderTopColor: theme.colors.border },
     diffContainer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    diffText: { fontSize: 14, fontWeight: 'bold' },
+    diffText: { fontSize: 12, fontWeight: 'bold' },
     sectionTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, marginTop: 8 },
     sectionTitleRowCompactTop: { marginTop: 5 },
     sectionTitle: { fontSize: 16, fontWeight: 'bold', color: theme.colors.text },
     totalDraftBig: { fontSize: 20, fontWeight: '900', color: theme.colors.primary },
     totalStoredText: { fontSize: 18, fontWeight: '700', color: theme.colors.text },
-    tableCard: { padding: 0, overflow: 'hidden', marginBottom: 10 },
+    tableCard: { padding: 0, overflow: 'hidden', marginBottom: 10, borderRadius: counterRadius.card },
     tableHeader: { flexDirection: 'row', backgroundColor: theme.colors.surface2, padding: 6 },
     tableHCell: { fontSize: 11, fontWeight: 'bold', color: theme.colors.mutedText },
-    tableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 3, paddingHorizontal: 5, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
+    tableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 2, paddingHorizontal: 5, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
     noBorder: { borderBottomWidth: 0 },
-    tableCell: { fontSize: 14, color: theme.colors.text },
-    tableInput: { width: 70, minHeight: 38 },
-    tableInputText: { textAlign: 'center', fontSize: 13, fontWeight: '700' },
+    tableCell: { fontSize: 13, color: theme.colors.text },
+    tableInput: { width: 66, minHeight: 30, borderRadius: counterRadius.sm },
+    tableInputText: { textAlign: 'center', fontSize: 12, fontWeight: '700' },
     buttonRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
-    btnAction: { flex: 1 },
-    storedBalanceContainer: { padding: 12, marginTop: 4, backgroundColor: theme.colors.surface },
+    buttonRowCompact: { gap: 6 },
+    btnAction: { flex: 1, borderRadius: counterRadius.md },
+    btnActionCompact: { minHeight: 36, paddingHorizontal: 6 },
+    storedBalanceContainer: { padding: 12, marginTop: 4, backgroundColor: theme.colors.surface, borderRadius: counterRadius.card },
     storedGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between' },
     storedGridItemWrapper: { width: '31%', marginBottom: 8, alignItems: 'center' },
     storedDenomHeader: { fontSize: 15, fontWeight: '900', color: theme.colors.text, marginBottom: 2 },
-    storedGridItem: { width: '100%', backgroundColor: '#FFF', padding: 4, borderRadius: radius.md, borderWidth: 1, borderColor: '#DDD', alignItems: 'center' },
-    storedGridQtyBox: { backgroundColor: '#E8EAF6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginBottom: 2 },
+    storedGridItem: { width: '100%', backgroundColor: '#FFF', padding: 4, borderRadius: counterRadius.md, borderWidth: 1, borderColor: '#DDD', alignItems: 'center' },
+    storedGridQtyBox: { backgroundColor: '#E8EAF6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: counterRadius.xs, marginBottom: 2 },
     storedGridQty: { fontSize: 12, fontWeight: 'bold', color: theme.colors.primary },
     storedGridSub: { fontSize: 11, color: '#666', fontWeight: '600' },
-    movRow: { flexDirection: 'row', alignItems: 'center', padding: 12, backgroundColor: theme.colors.surface, borderRadius: radius.md, marginBottom: 8, borderWidth: 1, borderColor: theme.colors.border },
+    movRow: { flexDirection: 'row', alignItems: 'center', padding: 12, backgroundColor: theme.colors.surface, borderRadius: counterRadius.md, marginBottom: 8, borderWidth: 1, borderColor: theme.colors.border },
     movTimeCol: { width: 70, alignItems: 'center' },
     movTimeText: { fontSize: 11, color: theme.colors.mutedText, marginTop: 4 },
-    movDescCol: { flex: 1, paddingHorizontal: 10 },
+    movDescCol: { flex: 1, minWidth: 0, paddingHorizontal: 10 },
     movDescText: { fontSize: 13, color: theme.colors.text },
-    movAmountCol: { alignItems: 'flex-end' },
+    movAmountCol: { alignItems: 'flex-end', maxWidth: '42%' },
     movAmountText: { fontSize: 14, fontWeight: 'bold' },
     dayHeader: { paddingVertical: 8, paddingHorizontal: 4 },
     dayHeaderText: { fontSize: 12, fontWeight: '700', color: theme.colors.mutedText, textTransform: 'uppercase' },
-    undoContainer: { position: 'absolute', bottom: 30, left: 20, right: 20, backgroundColor: '#333', padding: 15, borderRadius: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 5, elevation: 6 },
+    undoContainer: { position: 'absolute', bottom: 30, left: 20, right: 20, backgroundColor: '#333', padding: 15, borderRadius: counterRadius.sm, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 5, elevation: 6 },
     undoText: { color: '#FFF', fontWeight: 'bold' },
     undoAction: { color: '#80CBC4', fontWeight: 'bold', fontSize: 14 },
-    tag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, minWidth: 40, alignItems: 'center' },
+    tag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: counterRadius.xs, minWidth: 40, alignItems: 'center' },
     tagPositive: { backgroundColor: '#E8F5E9', borderColor: '#2E7D32', borderWidth: 1 },
     tagNegative: { backgroundColor: '#FFEBEE', borderColor: '#C62828', borderWidth: 1 },
     tagNeutral: { backgroundColor: '#F5F5F5' },
@@ -476,7 +487,7 @@ const styles = StyleSheet.create({
     neutral: { color: theme.colors.text },
     emptyText: { textAlign: 'center', color: theme.colors.mutedText, padding: 30 },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20 },
-    modalContent: { backgroundColor: '#FFF', borderRadius: radius.lg, padding: 20, maxHeight: '80%' },
+    modalContent: { backgroundColor: '#FFF', borderRadius: counterRadius.lg, padding: 20, maxHeight: '80%' },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
     modalTitle: { fontSize: 18, fontWeight: 'bold' },
     modalClose: { fontSize: 22, color: '#999' },
@@ -492,5 +503,5 @@ const styles = StyleSheet.create({
     modalDenomLabel: { fontSize: 14, color: theme.colors.text },
     modalDenomValue: { fontSize: 14, fontWeight: '600', color: theme.colors.primary },
     modalActions: { gap: 10 },
-    btnDelete: { marginBottom: 8 }
+    btnDelete: { marginBottom: 8, borderRadius: counterRadius.md }
 });

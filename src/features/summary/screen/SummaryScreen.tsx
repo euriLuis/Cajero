@@ -1,11 +1,11 @@
 import React, { useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { formatCents } from '../../../shared/utils/money';
-import { getDayRangeMs, getWeekRangeMs, formatDateShort, formatTimeNoSeconds } from '../../../shared/utils/dates';
+import { formatDateShort, formatTimeNoSeconds } from '../../../shared/utils/dates';
 import { theme } from '../../../ui/theme';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SoftButton, SoftInput } from '../../../ui/components';
+import { SoftInput } from '../../../ui/components';
 import { useFloatingTabBarClearance } from '../../../ui/navigation/safeAreaMetrics';
 import { useSummaryScreen } from '../hooks/useSummaryScreen';
 
@@ -28,11 +28,10 @@ export const SummaryScreen = () => {
         productsSold,
         loading,
         formAmount,
-        setFormAmount,
         formReason,
         setFormReason,
         amountError,
-        setAmountError,
+        isSavingWithdrawal,
         pendingDelete,
         todayFlag,
         yesterdayFlag,
@@ -45,11 +44,22 @@ export const SummaryScreen = () => {
         handleRefresh,
     } = useSummaryScreen();
 
+    const visibleWithdrawals = useMemo(
+        () => withdrawals.filter(w => !pendingDelete || pendingDelete.id !== w.id),
+        [withdrawals, pendingDelete]
+    );
+
     const renderHeader = useCallback(() => (
         <View>
             {/* Quick Date Selector */}
-            <View style={styles.topBar}>
-                <View style={styles.quickButtons}>
+            <View style={[styles.topBar, isCompact && styles.topBarCompact]}>
+                <TouchableOpacity style={styles.datePickerBtn} onPress={() => setShowDatePicker(true)}>
+                    <Text style={styles.datePickerText} numberOfLines={1}>
+                        {formatDateShort(currentDate.getTime())} 📅
+                    </Text>
+                </TouchableOpacity>
+
+                <View style={[styles.quickButtons, isCompact && styles.quickButtonsCompact]}>
                     <TouchableOpacity
                         style={[styles.quickBtn, todayFlag && styles.activeQuickBtn]}
                         onPress={() => handleQuickDate('today')}
@@ -64,9 +74,6 @@ export const SummaryScreen = () => {
                     </TouchableOpacity>
                 </View>
 
-                <TouchableOpacity style={styles.datePickerBtn} onPress={() => setShowDatePicker(true)}>
-                    <Text style={styles.datePickerText}>{formatDateShort(currentDate.getTime())} 📅</Text>
-                </TouchableOpacity>
             </View>
 
             {showDatePicker && (
@@ -79,34 +86,34 @@ export const SummaryScreen = () => {
             )}
 
             {/* Summary Cards - Row 1 */}
-            <View style={styles.summaryContainer}>
-                <View style={[styles.summaryCard, styles.summaryCardPrimary]}>
-                    <Text style={styles.summaryLabel}>Facturado</Text>
-                    <Text style={[styles.summaryValue, styles.summaryValuePrimary]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(totalSales)}</Text>
+            <View style={[styles.summaryContainer, isCompact && styles.summaryContainerCompact]}>
+                <View style={[styles.summaryCard, isCompact && styles.summaryCardCompact, styles.summaryCardPrimary]}>
+                    <Text style={[styles.summaryLabel, isCompact && styles.summaryLabelCompact]}>Facturado</Text>
+                    <Text style={[styles.summaryValue, isCompact && styles.summaryValueCompact, styles.summaryValuePrimary]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>{formatCents(totalSales)}</Text>
                 </View>
-                <View style={[styles.summaryCard, styles.summaryCardDanger]}>
-                    <Text style={styles.summaryLabel}>Extracciones</Text>
-                    <Text style={[styles.summaryValue, styles.summaryValueDanger]} numberOfLines={1} adjustsFontSizeToFit>-{formatCents(totalWithdrawals)}</Text>
+                <View style={[styles.summaryCard, isCompact && styles.summaryCardCompact, styles.summaryCardDanger]}>
+                    <Text style={[styles.summaryLabel, isCompact && styles.summaryLabelCompact]}>Extracciones</Text>
+                    <Text style={[styles.summaryValue, isCompact && styles.summaryValueCompact, styles.summaryValueDanger]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>-{formatCents(totalWithdrawals)}</Text>
                 </View>
-                <View style={[styles.summaryCard, styles.summaryCardSuccess]}>
-                    <Text style={styles.summaryLabel}>Caja</Text>
-                    <Text style={[styles.summaryValue, styles.summaryValueSuccess]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(netBalance)}</Text>
+                <View style={[styles.summaryCard, isCompact && styles.summaryCardCompact, styles.summaryCardSuccess]}>
+                    <Text style={[styles.summaryLabel, isCompact && styles.summaryLabelCompact]}>Caja</Text>
+                    <Text style={[styles.summaryValue, isCompact && styles.summaryValueCompact, styles.summaryValueSuccess]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>{formatCents(netBalance)}</Text>
                 </View>
             </View>
 
             {/* Summary Cards - Row 2 */}
-            <View style={styles.summaryContainer}>
-                <View style={[styles.summaryCard, styles.summaryCardInfo]}>
-                    <Text style={styles.summaryLabel}>Salario diario</Text>
-                    <Text style={[styles.summaryValue, styles.summaryValueInfo]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(totalDailySalary)}</Text>
+            <View style={[styles.summaryContainer, isCompact && styles.summaryContainerCompact]}>
+                <View style={[styles.summaryCard, isCompact && styles.summaryCardCompact, styles.summaryCardInfo]}>
+                    <Text style={[styles.summaryLabel, isCompact && styles.summaryLabelCompact]}>Salario diario</Text>
+                    <Text style={[styles.summaryValue, isCompact && styles.summaryValueCompact, styles.summaryValueInfo]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>{formatCents(totalDailySalary)}</Text>
                 </View>
-                <View style={[styles.summaryCard, styles.summaryCardWeekly]}>
-                    <Text style={styles.summaryLabel}>Total semanal</Text>
-                    <Text style={[styles.summaryValue, styles.summaryValueWeekly]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(totalWeeklySales)}</Text>
+                <View style={[styles.summaryCard, isCompact && styles.summaryCardCompact, styles.summaryCardWeekly]}>
+                    <Text style={[styles.summaryLabel, isCompact && styles.summaryLabelCompact]}>Total semanal</Text>
+                    <Text style={[styles.summaryValue, isCompact && styles.summaryValueCompact, styles.summaryValueWeekly]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>{formatCents(totalWeeklySales)}</Text>
                 </View>
-                <View style={[styles.summaryCard, styles.summaryCardSalary]}>
-                    <Text style={styles.summaryLabel}>Salario semanal</Text>
-                    <Text style={[styles.summaryValue, styles.summaryValueSalary]} numberOfLines={1} adjustsFontSizeToFit>{formatCents(totalWeeklySalary)}</Text>
+                <View style={[styles.summaryCard, isCompact && styles.summaryCardCompact, styles.summaryCardSalary]}>
+                    <Text style={[styles.summaryLabel, isCompact && styles.summaryLabelCompact]}>Salario semanal</Text>
+                    <Text style={[styles.summaryValue, isCompact && styles.summaryValueCompact, styles.summaryValueSalary]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>{formatCents(totalWeeklySalary)}</Text>
                 </View>
             </View>
 
@@ -116,10 +123,10 @@ export const SummaryScreen = () => {
                     <View style={styles.productsSectionHeader}>
                         <Text style={styles.productsSectionTitle}>📦 Productos Vendidos</Text>
                     </View>
-                    <View style={styles.productsGrid}>
+                    <View style={[styles.productsGrid, isCompact && styles.productsGridCompact]}>
                         {productsSold.map((product, index) => (
-                            <View key={index} style={styles.productItem}>
-                                <Text style={styles.productName}>{product.productName}</Text>
+                            <View key={index} style={[styles.productItem, isCompact && styles.productItemCompact]}>
+                                <Text style={styles.productName} numberOfLines={1}>{product.productName}</Text>
                                 <Text style={styles.productQty}>Total: {product.totalQty}</Text>
                             </View>
                         ))}
@@ -131,7 +138,7 @@ export const SummaryScreen = () => {
                 <Text style={styles.listTitle}>Movimientos de Caja</Text>
             </View>
         </View>
-    ), [currentDate, totalSales, totalWithdrawals, totalWeeklySales, totalDailySalary, totalWeeklySalary, netBalance, showDatePicker, productsSold, todayFlag, yesterdayFlag, handleQuickDate, handleDateChange, setShowDatePicker]);
+    ), [currentDate, totalSales, totalWithdrawals, totalWeeklySales, totalDailySalary, totalWeeklySalary, netBalance, showDatePicker, productsSold, todayFlag, yesterdayFlag, handleQuickDate, handleDateChange, setShowDatePicker, isCompact]);
 
     const renderWithdrawalItem = useCallback(({ item }: { item: typeof withdrawals[number] }) => (
         <TouchableOpacity
@@ -156,36 +163,48 @@ export const SummaryScreen = () => {
 
             {/* Withdrawal Form */}
             <View style={styles.formCard}>
-                <Text style={styles.formTitle}>Registrar Extracción</Text>
-                <View style={[styles.formRow, isCompact && styles.formRowCompact]}>
-                    <SoftInput
-                        containerStyle={[styles.input, isCompact ? styles.inputCompact : styles.amountInput, amountError && styles.inputError]}
-                        placeholder="Monto (0.00)"
-                        value={formAmount}
-                        onChangeText={handleAmountChange}
-                        keyboardType="numeric"
-                    />
-                    <SoftInput
-                        containerStyle={[styles.input, isCompact ? styles.inputCompact : styles.reasonInput]}
-                        placeholder="Motivo (opcional)"
-                        value={formReason}
-                        onChangeText={setFormReason}
-                    />
-                    <SoftButton
-                        label="OK"
-                        onPress={handleAddWithdrawal}
-                        disabled={!!amountError}
-                        style={[styles.addBtn, amountError && styles.addBtnDisabled]}
-                    />
+                <View style={styles.formHeaderRow}>
+                    <Text style={styles.formTitle}>Registrar Extracción</Text>
+                    {amountError && <Text style={styles.formErrorText} numberOfLines={1}>{amountError}</Text>}
                 </View>
-                {amountError && (
-                    <Text style={styles.formErrorText}>{amountError}</Text>
-                )}
+                <View style={styles.formRow}>
+                    <View style={styles.formInputsRow}>
+                        <SoftInput
+                            size="compact"
+                            leftIcon="$"
+                            containerStyle={[styles.input, styles.amountInput, amountError && styles.inputError]}
+                            inputStyle={styles.formInputText}
+                            placeholder="Monto"
+                            value={formAmount}
+                            onChangeText={handleAmountChange}
+                            keyboardType="numeric"
+                            returnKeyType="next"
+                        />
+                        <SoftInput
+                            size="compact"
+                            containerStyle={[styles.input, styles.reasonInput]}
+                            inputStyle={styles.formInputText}
+                            placeholder="Motivo"
+                            value={formReason}
+                            onChangeText={setFormReason}
+                            returnKeyType="done"
+                            onSubmitEditing={handleAddWithdrawal}
+                        />
+                    </View>
+                    <TouchableOpacity
+                        style={[styles.addBtn, (amountError || isSavingWithdrawal) && styles.addBtnDisabled]}
+                        onPress={handleAddWithdrawal}
+                        disabled={!!amountError || isSavingWithdrawal}
+                        activeOpacity={0.86}
+                    >
+                        <Text style={styles.addBtnText}>{isSavingWithdrawal ? '...' : 'OK'}</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             <View style={styles.card}>
                 <FlatList
-                    data={withdrawals.filter(w => !pendingDelete || pendingDelete.id !== w.id)}
+                    data={visibleWithdrawals}
                     keyExtractor={item => item.id.toString()}
                     renderItem={renderWithdrawalItem}
                     ListHeaderComponent={renderHeader}
@@ -196,6 +215,11 @@ export const SummaryScreen = () => {
                     contentContainerStyle={[styles.listContent, { paddingBottom: bottomClearance }]}
                     refreshing={loading}
                     onRefresh={handleRefresh}
+                    removeClippedSubviews={true}
+                    initialNumToRender={10}
+                    maxToRenderPerBatch={10}
+                    updateCellsBatchingPeriod={50}
+                    windowSize={5}
                     keyboardShouldPersistTaps="handled"
                 />
 
@@ -234,13 +258,22 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: theme.spacing.md,
+        gap: theme.spacing.sm,
         backgroundColor: theme.colors.background,
         borderBottomWidth: 1,
         borderBottomColor: theme.colors.border,
     },
+    topBarCompact: {
+        padding: theme.spacing.sm,
+        gap: theme.spacing.xs,
+    },
     quickButtons: {
         flexDirection: 'row',
         gap: theme.spacing.xs,
+        flexShrink: 0,
+    },
+    quickButtonsCompact: {
+        gap: 4,
     },
     quickBtn: {
         paddingHorizontal: theme.spacing.md,
@@ -259,6 +292,8 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
     datePickerBtn: {
+        flex: 1,
+        minWidth: 0,
         paddingVertical: theme.spacing.xs,
     },
     datePickerText: {
@@ -275,6 +310,10 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'stretch',
     },
+    summaryContainerCompact: {
+        paddingHorizontal: theme.spacing.sm,
+        gap: theme.spacing.xs,
+    },
     summaryCard: {
         flex: 1,
         minHeight: 88,
@@ -287,6 +326,11 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         ...theme.shadows.softControlShadow,
+    },
+    summaryCardCompact: {
+        minHeight: 76,
+        paddingVertical: 6,
+        paddingHorizontal: 5,
     },
     summaryCardPrimary: { borderColor: 'rgba(14,18,32,0.16)' },
     summaryCardDanger: { borderColor: 'rgba(239,68,68,0.24)' },
@@ -304,6 +348,10 @@ const styles = StyleSheet.create({
         letterSpacing: 0.3,
         fontSize: 11,
     },
+    summaryLabelCompact: {
+        fontSize: 9,
+        marginBottom: 3,
+    },
     summaryValue: {
         ...theme.typography.subtitle,
         fontSize: 14,
@@ -318,27 +366,43 @@ const styles = StyleSheet.create({
     summaryValueWeekly: { color: '#7E4CC7' },
     summaryValueSalary: { color: '#C98514' },
     formCard: {
-        margin: theme.spacing.md,
-        padding: theme.spacing.md,
+        marginHorizontal: theme.spacing.md,
+        marginTop: theme.spacing.sm,
+        marginBottom: theme.spacing.sm,
+        paddingVertical: theme.spacing.sm,
+        paddingHorizontal: theme.spacing.sm,
         backgroundColor: theme.colors.background,
         borderRadius: theme.spacing.sm,
         borderWidth: 1,
         borderColor: theme.colors.border,
     },
+    formHeaderRow: {
+        minHeight: 18,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: theme.spacing.sm,
+        marginBottom: theme.spacing.xs,
+    },
     formTitle: {
         ...theme.typography.caption,
         fontWeight: 'bold',
-        marginBottom: theme.spacing.sm,
+        color: theme.colors.text,
+        flexShrink: 0,
     },
     formRow: {
         flexDirection: 'row',
         gap: theme.spacing.xs,
+        alignItems: 'center',
     },
-    formRowCompact: {
-        flexDirection: 'column',
+    formInputsRow: {
+        flex: 1,
+        minWidth: 0,
+        flexDirection: 'row',
+        gap: theme.spacing.xs,
     },
     input: {
-        minHeight: 46,
+        minHeight: 38,
     },
     amountInput: {
         flexGrow: 1,
@@ -346,18 +410,32 @@ const styles = StyleSheet.create({
         flexBasis: 0,
     },
     reasonInput: {
-        flexGrow: 2,
+        flexGrow: 1,
         flexShrink: 1,
         flexBasis: 0,
     },
-    inputCompact: {
-        flexGrow: 0,
-        flexShrink: 0,
-        width: '100%',
+    formInputText: {
+        fontSize: 13,
+        paddingVertical: 4,
+    },
+    summaryValueCompact: {
+        fontSize: 13,
     },
     addBtn: {
-        minWidth: 64,
-        backgroundColor: theme.colors.surface,
+        width: 42,
+        minHeight: 38,
+        borderRadius: theme.spacing.sm,
+        backgroundColor: theme.colors.success,
+        borderWidth: 1,
+        borderColor: 'rgba(30,154,98,0.3)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        ...theme.shadows.softControlShadow,
+    },
+    addBtnText: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '800',
     },
     listHeader: {
         paddingHorizontal: theme.spacing.md,
@@ -451,10 +529,10 @@ const styles = StyleSheet.create({
     },
     formErrorText: {
         color: '#DC2626',
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: '600',
-        marginTop: theme.spacing.xs,
-        marginLeft: theme.spacing.md,
+        flex: 1,
+        textAlign: 'right',
     },
     productsSection: {
         paddingHorizontal: theme.spacing.md,
@@ -477,6 +555,9 @@ const styles = StyleSheet.create({
         flexWrap: 'wrap',
         gap: theme.spacing.md,
     },
+    productsGridCompact: {
+        gap: theme.spacing.sm,
+    },
     productItem: {
         backgroundColor: theme.colors.surface,
         borderRadius: theme.spacing.sm,
@@ -485,6 +566,11 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#3B82F6',
         minWidth: '45%',
+    },
+    productItemCompact: {
+        minWidth: 0,
+        width: '48%',
+        paddingHorizontal: theme.spacing.sm,
     },
     productName: {
         ...theme.typography.body,

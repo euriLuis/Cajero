@@ -4,7 +4,7 @@ import { salesRepo, withdrawalsRepo } from '../../../data/repositories';
 import { Withdrawal } from '../../../shared/domain/models/Withdrawal';
 import { getDayRangeMs, getWeekRangeMs } from '../../../shared/utils/dates';
 import { parseMoneyToCents } from '../../../shared/utils/money';
-import { useSoftNotice } from '../../../ui/components';
+import { useErrorReporter, useSoftNotice } from '../../../ui/components';
 import { isToday, isYesterday } from '../../shared/utils/dateComparisons';
 import { validateMonetaryAmount } from '../../shared/utils/validation';
 import { calculateDailySalary, calculateWeeklySalary } from '../utils/salaryCalculations';
@@ -29,10 +29,12 @@ export function useSummaryScreen() {
     const [formAmount, setFormAmount] = useState('');
     const [formReason, setFormReason] = useState('');
     const [amountError, setAmountError] = useState<string | null>(null);
+    const [isSavingWithdrawal, setIsSavingWithdrawal] = useState(false);
 
     const [pendingDelete, setPendingDelete] = useState<{ id: number; withdrawal: Withdrawal } | null>(null);
     const pendingDeleteTimerRef = useRef<NodeJS.Timeout | null>(null);
     const { showNotice } = useSoftNotice();
+    const { reportError } = useErrorReporter();
 
     const loadData = useCallback(async () => {
         setLoading(true);
@@ -55,12 +57,20 @@ export function useSummaryScreen() {
             setTotalWeeklySales(weeklySalesSum);
             setTotalDailySalary(salaryDaily);
             setProductsSold(productsSoldList);
-        } catch {
+        } catch (error) {
             showNotice({ title: 'Error', message: 'No se pudieron cargar los datos de la caja', type: 'error' });
+            reportError({
+                title: 'Error cargando resumen',
+                message: 'No se pudieron cargar los datos de la caja',
+                source: 'Resumen / Cargar datos',
+                error,
+                reproductionSteps: 'Abrir la seccion Resumen o cambiar la fecha seleccionada.',
+                details: `Fecha seleccionada: ${currentDate.toISOString()}`,
+            });
         } finally {
             setLoading(false);
         }
-    }, [currentDate, showNotice]);
+    }, [currentDate, showNotice, reportError]);
 
     useFocusEffect(
         useCallback(() => {
@@ -105,13 +115,31 @@ export function useSummaryScreen() {
         setCurrentDate(newDate);
     }, []);
 
-    const validateAmount = useCallback((amount: string) => validateMonetaryAmount(amount, parseMoneyToCents), []);
+    const validateAmount = useCallback((amount: string) => {
+        const normalized = amount.trim().replace(/[$ ]/g, '').replace(',', '.');
+        if (normalized === '') {
+            return { valid: false as const, error: 'Ingresa un monto' };
+        }
+        if (!/^\d+(\.\d{0,2})?$/.test(normalized)) {
+            return { valid: false as const, error: 'Usa un monto valido' };
+        }
+        return validateMonetaryAmount(amount, parseMoneyToCents);
+    }, []);
 
     const handleAmountChange = useCallback((text: string) => {
         setFormAmount(text);
-    }, []);
+        if (text.trim() === '') {
+            setAmountError(null);
+            return;
+        }
+
+        const validation = validateAmount(text);
+        setAmountError(validation.valid ? null : validation.error);
+    }, [validateAmount]);
 
     const handleAddWithdrawal = useCallback(async () => {
+        if (isSavingWithdrawal) return;
+
         const validation = validateAmount(formAmount);
         if (!validation.valid) {
             setAmountError(validation.error || null);
@@ -121,6 +149,7 @@ export function useSummaryScreen() {
         const amountCents = validation.value;
 
         try {
+            setIsSavingWithdrawal(true);
             let createdAtMs = Date.now();
             const selectedDateMs = currentDate.getTime();
             if (!isToday(selectedDateMs)) {
@@ -129,15 +158,25 @@ export function useSummaryScreen() {
                 createdAtMs = combined.getTime();
             }
 
-            await withdrawalsRepo.createWithdrawal(amountCents, formReason, createdAtMs);
+            await withdrawalsRepo.createWithdrawal(amountCents, formReason.trim(), createdAtMs);
             setFormAmount('');
             setFormReason('');
             setAmountError(null);
-            loadData();
-        } catch {
+            await loadData();
+        } catch (error) {
             showNotice({ title: 'Error', message: 'No se pudo registrar la extracción', type: 'error' });
+            reportError({
+                title: 'Error registrando extraccion',
+                message: 'No se pudo registrar la extraccion',
+                source: 'Resumen / Registrar extraccion',
+                error,
+                reproductionSteps: 'Abrir Resumen, escribir monto y motivo, y tocar OK.',
+                details: `Monto: ${formAmount || '(vacio)'} | Motivo: ${formReason || '(vacio)'} | Fecha: ${currentDate.toISOString()}`,
+            });
+        } finally {
+            setIsSavingWithdrawal(false);
         }
-    }, [formAmount, formReason, currentDate, validateAmount, loadData, showNotice]);
+    }, [formAmount, formReason, currentDate, validateAmount, loadData, showNotice, isSavingWithdrawal, reportError]);
 
     const handleDeleteWithdrawal = useCallback((withdrawal: Withdrawal) => {
         setPendingDelete({ id: withdrawal.id, withdrawal });
@@ -149,12 +188,20 @@ export function useSummaryScreen() {
                 await withdrawalsRepo.deleteWithdrawal(withdrawal.id);
                 setPendingDelete(null);
                 loadData();
-            } catch {
+            } catch (error) {
                 showNotice({ title: 'Error', message: 'No se pudo eliminar la extracción', type: 'error' });
+                reportError({
+                    title: 'Error eliminando extraccion',
+                    message: 'No se pudo eliminar la extraccion',
+                    source: 'Resumen / Eliminar extraccion',
+                    error,
+                    reproductionSteps: 'Abrir Resumen, tocar eliminar en una extraccion y esperar la confirmacion.',
+                    details: `Extraccion: #${withdrawal.id} | Monto: ${withdrawal.amountCents} centavos`,
+                });
                 setPendingDelete(null);
             }
         }, 5000);
-    }, [loadData, showNotice]);
+    }, [loadData, showNotice, reportError]);
 
     const handleCancelDelete = useCallback(() => {
         if (pendingDeleteTimerRef.current) {
@@ -186,11 +233,11 @@ export function useSummaryScreen() {
         productsSold,
         loading,
         formAmount,
-        setFormAmount,
         formReason,
         setFormReason,
         amountError,
         setAmountError,
+        isSavingWithdrawal,
         pendingDelete,
         todayFlag,
         yesterdayFlag,

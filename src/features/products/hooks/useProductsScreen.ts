@@ -1,9 +1,9 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Alert } from 'react-native';
 import { productsRepo } from '../../../data/repositories';
 import { Product } from '../../../shared/domain/models/Product';
 import { parseMoneyToCents } from '../../../shared/utils/money';
-import { useSoftNotice } from '../../../ui/components';
+import { useErrorReporter, useSoftNotice } from '../../../ui/components';
 
 export function useProductsScreen() {
     const [products, setProducts] = useState<Product[]>([]);
@@ -15,22 +15,37 @@ export function useProductsScreen() {
     const [formName, setFormName] = useState('');
     const [formPrice, setFormPrice] = useState('');
     const { showNotice } = useSoftNotice();
+    const { reportError } = useErrorReporter();
+    const searchDebounceReadyRef = useRef(false);
 
     const loadProducts = useCallback(async (searchTerm: string) => {
         setLoading(true);
         try {
             const list = await productsRepo.listActiveProducts(searchTerm);
             setProducts(list);
-        } catch {
+        } catch (error) {
             showNotice({ title: 'Error', message: 'No se pudieron cargar los productos', type: 'error' });
+            reportError({
+                title: 'Error cargando productos',
+                message: 'No se pudieron cargar los productos',
+                source: 'Productos / Listado',
+                error,
+                reproductionSteps: 'Abrir la seccion Productos o escribir en el buscador.',
+                details: `Busqueda: ${searchTerm || '(vacia)'}`,
+            });
         } finally {
             setLoading(false);
         }
-    }, [showNotice]);
+    }, [reportError, showNotice]);
 
     useEffect(() => { loadProducts(''); }, [loadProducts]);
 
     useEffect(() => {
+        if (!searchDebounceReadyRef.current) {
+            searchDebounceReadyRef.current = true;
+            return;
+        }
+
         const debounceTimer = setTimeout(() => loadProducts(search), 350);
         return () => clearTimeout(debounceTimer);
     }, [search, loadProducts]);
@@ -61,11 +76,19 @@ export function useProductsScreen() {
             else await productsRepo.createProduct(formName, priceCents);
 
             setModalVisible(false);
-            loadProducts(search);
-        } catch {
+            await loadProducts(search);
+        } catch (error) {
             showNotice({ title: 'Error', message: 'No se pudo guardar el producto', type: 'error' });
+            reportError({
+                title: 'Error guardando producto',
+                message: 'No se pudo guardar el producto',
+                source: 'Productos / Guardar',
+                error,
+                reproductionSteps: 'Abrir Productos, crear o editar un producto y tocar Guardar.',
+                details: `Nombre: ${formName || '(vacio)'} | Precio: ${formPrice || '(vacio)'}`,
+            });
         }
-    }, [editingProduct, formName, formPrice, search, loadProducts, showNotice]);
+    }, [editingProduct, formName, formPrice, search, loadProducts, showNotice, reportError]);
 
     const handleDeactivate = useCallback(async () => {
         if (!editingProduct) return;
@@ -78,14 +101,22 @@ export function useProductsScreen() {
                     try {
                         await productsRepo.deactivateProduct(editingProduct.id);
                         setModalVisible(false);
-                        loadProducts(search);
-                    } catch {
+                        await loadProducts(search);
+                    } catch (error) {
                         showNotice({ title: 'Error', message: 'No se pudo desactivar', type: 'error' });
+                        reportError({
+                            title: 'Error desactivando producto',
+                            message: 'No se pudo desactivar el producto',
+                            source: 'Productos / Desactivar',
+                            error,
+                            reproductionSteps: 'Abrir Productos, tocar un producto existente y confirmar Desactivar.',
+                            details: `Producto: ${editingProduct.name} (#${editingProduct.id})`,
+                        });
                     }
                 },
             },
         ]);
-    }, [editingProduct, search, loadProducts, showNotice]);
+    }, [editingProduct, search, loadProducts, showNotice, reportError]);
 
     const handleRefresh = useCallback(() => loadProducts(search), [search, loadProducts]);
 

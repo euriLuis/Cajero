@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { theme } from '../../theme';
 
@@ -16,6 +16,7 @@ interface SoftNoticeContextValue {
 }
 
 const SoftNoticeContext = createContext<SoftNoticeContextValue | null>(null);
+const DEFAULT_NOTICE_DURATION_MS = 3000;
 
 export const SoftNoticeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [notice, setNotice] = useState<NoticeOptions | null>(null);
@@ -25,7 +26,11 @@ export const SoftNoticeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const hideNotice = useCallback(() => {
-    if (!visible) return;
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
+    }
+
     Animated.parallel([
       Animated.timing(opacity, { toValue: 0, duration: 140, useNativeDriver: true }),
       Animated.timing(translateY, { toValue: 18, duration: 140, useNativeDriver: true }),
@@ -33,7 +38,7 @@ export const SoftNoticeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setVisible(false);
       setNotice(null);
     });
-  }, [opacity, translateY, visible]);
+  }, [opacity, translateY]);
 
   const showNotice = useCallback((options: NoticeOptions) => {
     if (hideTimerRef.current) {
@@ -51,8 +56,14 @@ export const SoftNoticeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       Animated.timing(translateY, { toValue: 0, duration: 160, useNativeDriver: true }),
     ]).start();
 
-    hideTimerRef.current = setTimeout(hideNotice, options.durationMs ?? 1000);
+    hideTimerRef.current = setTimeout(hideNotice, options.durationMs ?? DEFAULT_NOTICE_DURATION_MS);
   }, [hideNotice, opacity, translateY]);
+
+  useEffect(() => () => {
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+    }
+  }, []);
 
   const contextValue = useMemo(() => ({ showNotice }), [showNotice]);
 

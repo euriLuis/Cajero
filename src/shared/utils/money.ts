@@ -1,8 +1,11 @@
 export const parseMoneyToCents = (input: string): number => {
-    // Remove currency symbol and whitespace
     let clean = input.replace(/[$ ]/g, '');
-    // Replace comma with dot
-    clean = clean.replace(',', '.');
+
+    if (clean.includes(',') && clean.includes('.')) {
+        clean = clean.replace(/,/g, '');
+    } else {
+        clean = clean.replace(',', '.');
+    }
 
     const value = parseFloat(clean);
     if (isNaN(value)) {

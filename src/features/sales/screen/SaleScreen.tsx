@@ -1,5 +1,5 @@
-import React, { useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, Animated } from 'react-native';
+import React, { useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, Animated, useWindowDimensions } from 'react-native';
 import { Product } from '../../../shared/domain/models/Product';
 import { formatCents } from '../../../shared/utils/money';
 import { theme } from '../../../ui/theme';
@@ -12,17 +12,16 @@ import { useSaleScreen, CartItem } from '../hooks/useSaleScreen';
 
 export const SaleScreen = () => {
     const insets = useSafeAreaInsets();
+    const { width } = useWindowDimensions();
+    const isCompact = width < 390;
     const bottomTabClearance = useFloatingTabBarClearance();
     const bottomActionOffset = bottomTabClearance + 4;
     const {
-        products,
-        loading,
         refreshing,
         selectedDate,
         showDatePicker,
         setShowDatePicker,
         selectedProduct,
-        selectorModalVisible,
         setSelectorModalVisible,
         selectorModalMounted,
         searchTerm,
@@ -48,8 +47,8 @@ export const SaleScreen = () => {
     const renderCartItem = useCallback(({ item }: { item: CartItem }) => (
         <View style={styles.cartItem}>
             <View style={styles.cartItemInfo}>
-                <Text style={styles.cartItemName}>{item.productNameSnapshot}</Text>
-                <Text style={styles.cartItemSubtotal}>
+                <Text style={styles.cartItemName} numberOfLines={1}>{item.productNameSnapshot}</Text>
+                <Text style={styles.cartItemSubtotal} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.76}>
                     {formatCents(item.unitPriceSnapshotCents * item.qty)}
                 </Text>
             </View>
@@ -82,8 +81,8 @@ export const SaleScreen = () => {
 
     const renderProductInModal = useCallback(({ item }: { item: Product }) => (
         <TouchableOpacity style={styles.modalProductItem} onPress={() => handleSelectProduct(item)}>
-            <Text style={styles.modalProductName}>{item.name}</Text>
-            <Text style={styles.modalProductPrice}>{formatCents(item.priceCents)}</Text>
+            <Text style={styles.modalProductName} numberOfLines={1}>{item.name}</Text>
+            <Text style={styles.modalProductPrice} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78}>{formatCents(item.priceCents)}</Text>
         </TouchableOpacity>
     ), [handleSelectProduct]);
 
@@ -112,7 +111,7 @@ export const SaleScreen = () => {
                 )}
 
                 {/* Product Selector & Quantity */}
-                <View style={styles.selectorSection}>
+                <View style={[styles.selectorSection, isCompact && styles.selectorSectionCompact]}>
                     <TouchableOpacity
                         style={[styles.dropdown, isSaving && styles.dropdownDisabled]}
                         onPress={() => {
@@ -121,14 +120,15 @@ export const SaleScreen = () => {
                         }}
                         disabled={isSaving}
                     >
-                        <Text style={selectedProduct ? styles.dropdownTextSelected : styles.dropdownTextPlaceholder}>
+                        <Text style={selectedProduct ? styles.dropdownTextSelected : styles.dropdownTextPlaceholder} numberOfLines={1}>
                             {selectedProduct ? selectedProduct.name : 'Seleccionar producto...'}
                         </Text>
                         <Text style={styles.dropdownArrow}>▼</Text>
                     </TouchableOpacity>
 
                     <SoftInput
-                        containerStyle={styles.qtyInput}
+                        containerStyle={[styles.qtyInput, isCompact && styles.qtyInputCompact]}
+                        inputStyle={styles.qtyInputText}
                         size="compact"
                         value={quantity}
                         onChangeText={handleQuantityChange}
@@ -167,17 +167,22 @@ export const SaleScreen = () => {
                     style={styles.cartList}
                     refreshing={refreshing}
                     onRefresh={handleRefresh}
+                    removeClippedSubviews={true}
+                    initialNumToRender={8}
+                    maxToRenderPerBatch={8}
+                    updateCellsBatchingPeriod={50}
+                    windowSize={5}
                 />
             </View>
 
             {/* Fixed Bottom Bar */}
-            <View style={[styles.bottomBar, { bottom: bottomActionOffset }]}>
+            <View style={[styles.bottomBar, isCompact && styles.bottomBarCompact, { bottom: bottomActionOffset }]}>
                 <View style={styles.totalSection}>
                     <Text style={styles.totalLabel}>Total:</Text>
-                    <Text style={styles.totalValue}>{formatCents(totalCents)}</Text>
+                    <Text style={styles.totalValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>{formatCents(totalCents)}</Text>
                 </View>
                 <TouchableOpacity
-                    style={[styles.confirmButton, (cart.length === 0 || isSaving) && styles.confirmButtonDisabled]}
+                    style={[styles.confirmButton, isCompact && styles.confirmButtonCompact, (cart.length === 0 || isSaving) && styles.confirmButtonDisabled]}
                     onPress={handleConfirmSale}
                     disabled={cart.length === 0 || isSaving}
                 >
@@ -223,6 +228,11 @@ export const SaleScreen = () => {
                             }
                             refreshing={refreshing}
                             onRefresh={handleRefresh}
+                            removeClippedSubviews={true}
+                            initialNumToRender={12}
+                            maxToRenderPerBatch={12}
+                            updateCellsBatchingPeriod={50}
+                            windowSize={6}
                         />
                     </Animated.View>
                 </Animated.View>
@@ -270,9 +280,15 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         padding: theme.spacing.md,
         gap: theme.spacing.sm,
+        alignItems: 'stretch',
+    },
+    selectorSectionCompact: {
+        padding: theme.spacing.sm,
+        gap: theme.spacing.xs,
     },
     dropdown: {
         flex: 1,
+        minWidth: 0,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -292,12 +308,16 @@ const styles = StyleSheet.create({
         ...theme.typography.body,
         color: theme.colors.mutedText,
         fontSize: 15,
+        flex: 1,
+        minWidth: 0,
     },
     dropdownTextSelected: {
         ...theme.typography.body,
         color: theme.colors.text,
         fontWeight: '500',
         fontSize: 15,
+        flex: 1,
+        minWidth: 0,
     },
     dropdownArrow: {
         fontSize: 12,
@@ -309,22 +329,32 @@ const styles = StyleSheet.create({
         opacity: 0.6,
     },
     qtyInput: {
-        width: 75,
+        width: 64,
+        minWidth: 64,
+        maxWidth: 64,
         backgroundColor: '#F0FDF4',
-        paddingVertical: theme.spacing.sm,
-        paddingHorizontal: theme.spacing.sm,
+        paddingVertical: theme.spacing.xs,
+        paddingHorizontal: 6,
         borderRadius: theme.spacing.md,
         borderWidth: 1.5,
         borderColor: theme.colors.primary,
-        textAlign: 'center',
-        fontSize: 15,
-        fontWeight: '600',
-        color: theme.colors.primary,
         shadowColor: theme.colors.primary,
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.1,
         shadowRadius: 2,
         elevation: 1,
+    },
+    qtyInputCompact: {
+        width: 58,
+        minWidth: 58,
+        maxWidth: 58,
+    },
+    qtyInputText: {
+        textAlign: 'center',
+        fontSize: 15,
+        fontWeight: '700',
+        color: theme.colors.primary,
+        paddingHorizontal: 0,
     },
     addButton: {
         backgroundColor: theme.colors.primary,
@@ -385,6 +415,7 @@ const styles = StyleSheet.create({
     },
     cartItemInfo: {
         flex: 1,
+        minWidth: 0,
     },
     cartItemName: {
         ...theme.typography.body,
@@ -474,8 +505,13 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 4,
     },
+    bottomBarCompact: {
+        paddingHorizontal: theme.spacing.sm,
+        gap: theme.spacing.sm,
+    },
     totalSection: {
         flex: 1,
+        minWidth: 0,
     },
     totalLabel: {
         ...theme.typography.caption,
@@ -496,6 +532,9 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.25,
         shadowRadius: 6,
         elevation: 6,
+    },
+    confirmButtonCompact: {
+        paddingHorizontal: theme.spacing.md,
     },
     confirmButtonDisabled: {
         backgroundColor: theme.colors.disabled,

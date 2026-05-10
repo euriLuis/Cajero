@@ -11,8 +11,8 @@ import { useProductsScreen } from '../hooks/useProductsScreen';
 const ProductRow = memo(({ product, onPress }: { product: Product; onPress: (p: Product) => void }) => (
     <TouchableOpacity onPress={() => onPress(product)} activeOpacity={0.9}>
         <SoftCard style={styles.itemCard}>
-            <Text style={styles.itemName}>{product.name}</Text>
-            <Text style={styles.itemPrice}>{formatCents(product.priceCents)}</Text>
+            <Text style={styles.itemName} numberOfLines={1}>{product.name}</Text>
+            <Text style={styles.itemPrice} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78}>{formatCents(product.priceCents)}</Text>
         </SoftCard>
     </TouchableOpacity>
 ));
@@ -86,10 +86,10 @@ export const ProductsScreen = () => {
                         <Text style={styles.label}>Precio</Text>
                         <SoftInput value={formPrice} onChangeText={setFormPrice} placeholder="0.00" keyboardType="numeric" />
 
-                        <View style={styles.modalButtons}>
-                            <SoftButton label="Cancelar" variant="ghost" onPress={() => setModalVisible(false)} />
-                            {editingProduct ? <SoftButton label="Desactivar" variant="danger" onPress={handleDeactivate} /> : null}
-                            <SoftButton label="Guardar" onPress={handleSave} />
+                        <View style={[styles.modalButtons, isCompact && styles.modalButtonsCompact]}>
+                            <SoftButton label="Cancelar" variant="ghost" onPress={() => setModalVisible(false)} style={isCompact && styles.modalButtonCompact} />
+                            {editingProduct ? <SoftButton label="Desactivar" variant="danger" onPress={handleDeactivate} style={isCompact && styles.modalButtonCompact} /> : null}
+                            <SoftButton label="Guardar" onPress={handleSave} style={isCompact && styles.modalButtonCompact} />
                         </View>
                     </SoftCard>
                 </View>
@@ -110,11 +110,13 @@ const styles = StyleSheet.create({
     listContent: { paddingHorizontal: theme.spacing.base, paddingBottom: theme.spacing.xl, gap: theme.spacing.sm },
     itemCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: theme.spacing.md },
     itemName: { ...theme.typography.body, color: theme.colors.text, flex: 1 },
-    itemPrice: { ...theme.typography.body, color: theme.colors.text, fontWeight: '600' },
+    itemPrice: { ...theme.typography.body, color: theme.colors.text, fontWeight: '600', maxWidth: '44%', textAlign: 'right' },
     emptyText: { textAlign: 'center', color: theme.colors.textMuted, paddingVertical: theme.spacing.xl },
     modalOverlay: { flex: 1, backgroundColor: theme.colors.overlay, justifyContent: 'center', padding: theme.spacing.lg },
     modalContent: { padding: theme.spacing.lg },
     modalTitle: { ...theme.typography.subtitle, color: theme.colors.text, textAlign: 'center', marginBottom: theme.spacing.md },
     label: { ...theme.typography.caption, color: theme.colors.textMuted, marginTop: theme.spacing.sm, marginBottom: theme.spacing.xs },
     modalButtons: { flexDirection: 'row', gap: theme.spacing.sm, justifyContent: 'flex-end', marginTop: theme.spacing.md },
+    modalButtonsCompact: { flexDirection: 'column' },
+    modalButtonCompact: { width: '100%' },
 });

@@ -3,8 +3,9 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Alert, TextInput } from 'react-native';
 import { cashRepo, salesRepo, withdrawalsRepo } from '../../../data/repositories';
 import { CashMovement, CashState } from '../../../data/repositories/cashRepo';
-import { getDayRangeMs, formatDateShort, formatTimeNoSeconds } from '../../../shared/utils/dates';
-import { useSoftNotice } from '../../../ui/components';
+import { getDayRangeMs, formatDateShort } from '../../../shared/utils/dates';
+import { formatCents } from '../../../shared/utils/money';
+import { useErrorReporter, useSoftNotice } from '../../../ui/components';
 import {
     DEFAULT_DENOMS,
     calculateTotalFromDraft,
@@ -33,9 +34,11 @@ export function useCashCounterScreen() {
     const [selectedMovement, setSelectedMovement] = useState<CashMovement | null>(null);
     const [detailModalVisible, setDetailModalVisible] = useState(false);
     const { showNotice } = useSoftNotice();
+    const { reportError } = useErrorReporter();
 
     const inputRefs = useRef<Record<number, TextInput | null>>({});
     const initialLoadDone = useRef(false);
+    const lastSavedDraftRef = useRef(JSON.stringify({}));
 
     const loadData = useCallback(async (isRefresh = false) => {
         if (!isRefresh && !initialLoadDone.current) setLoading(true);
@@ -57,6 +60,7 @@ export function useCashCounterScreen() {
                 initial[d.toString()] = draft[d.toString()] || '';
             });
 
+            lastSavedDraftRef.current = JSON.stringify(initial);
             setQuantities(initial);
             setCashState(state);
             setMovements(movs);
@@ -70,13 +74,20 @@ export function useCashCounterScreen() {
             setTotalSalesToday(salesSum);
             setTotalWithdrawalsToday(withdrawalsSum);
             initialLoadDone.current = true;
-        } catch {
+        } catch (error) {
             showNotice({ title: 'Error', message: 'No se pudieron cargar los datos de caja', type: 'error' });
+            reportError({
+                title: 'Error cargando contador',
+                message: 'No se pudieron cargar los datos de caja',
+                source: 'Contador / Cargar datos',
+                error,
+                reproductionSteps: 'Abrir la seccion Contador o hacer pull-to-refresh.',
+            });
         } finally {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [showNotice]);
+    }, [showNotice, reportError]);
 
     useFocusEffect(
         useCallback(() => {
@@ -87,24 +98,29 @@ export function useCashCounterScreen() {
         }, [loadData])
     );
 
-    // Debounced save
-    const isFirstRender = useRef(true);
+    // Persist the draft only when the user changed it; loading the stored draft should not write it back.
     useEffect(() => {
-        if (isFirstRender.current) {
-            isFirstRender.current = false;
+        const serialized = JSON.stringify(quantities);
+        if (serialized === lastSavedDraftRef.current) {
             return;
         }
+
         const timer = setTimeout(() => {
+            lastSavedDraftRef.current = serialized;
             cashRepo.setCashCounterDraft(quantities);
         }, 500);
         return () => clearTimeout(timer);
     }, [quantities]);
 
     const handleQuantityChange = useCallback((denom: number, text: string) => {
-        setQuantities(prev => ({
-            ...prev,
-            [denom.toString()]: text,
-        }));
+        const key = denom.toString();
+        setQuantities(prev => {
+            if (prev[key] === text) return prev;
+            return {
+                ...prev,
+                [key]: text,
+            };
+        });
     }, []);
 
     const handleNextInput = useCallback((index: number) => {
@@ -123,6 +139,7 @@ export function useCashCounterScreen() {
                 onPress: () => {
                     const reset: QuantitiesState = {};
                     DEFAULT_DENOMS.forEach(d => (reset[d.toString()] = ''));
+                    lastSavedDraftRef.current = JSON.stringify(reset);
                     setQuantities(reset);
                     cashRepo.setCashCounterDraft(reset);
                 },
@@ -165,7 +182,7 @@ export function useCashCounterScreen() {
         const actionText = type === 'IN' ? 'AGREGAR' : 'RESTAR';
         Alert.alert(
             `¿${actionText} saldo?`,
-            `Se aplicará un total de ${formatCentsImport(totalContadoCents)} al saldo de caja.`,
+            `Se aplicará un total de ${formatCents(totalContadoCents)} al saldo de caja.`,
             [
                 { text: 'Cancelar', style: 'cancel' },
                 {
@@ -175,17 +192,26 @@ export function useCashCounterScreen() {
                             await cashRepo.applyMovement(type, denomsDelta);
                             const reset: QuantitiesState = {};
                             DEFAULT_DENOMS.forEach(d => (reset[d.toString()] = ''));
+                            lastSavedDraftRef.current = JSON.stringify(reset);
                             await cashRepo.setCashCounterDraft(reset);
                             setQuantities(reset);
                             await loadData(true);
                         } catch (error: any) {
                             showNotice({ title: 'Error', message: error.message, type: 'error' });
+                            reportError({
+                                title: 'Error aplicando movimiento de caja',
+                                message: error.message || 'No se pudo aplicar el movimiento de caja',
+                                source: 'Contador / Aplicar movimiento',
+                                error,
+                                reproductionSteps: 'Abrir Contador, ingresar denominaciones y confirmar AGREGAR o RESTAR.',
+                                details: `Tipo: ${type} | Total: ${totalContadoCents} centavos`,
+                            });
                         }
                     }
                 }
             ]
         );
-    }, [totalContadoCents, quantities, loadData, showNotice]);
+    }, [totalContadoCents, quantities, loadData, showNotice, reportError]);
 
     const handleDeleteMovement = useCallback(() => {
         if (!selectedMovement) return;
@@ -203,10 +229,18 @@ export function useCashCounterScreen() {
                 await loadData(true);
             } catch (error: any) {
                 showNotice({ title: 'Error', message: error.message || 'No se pudo eliminar el movimiento', type: 'error' });
+                reportError({
+                    title: 'Error eliminando movimiento de caja',
+                    message: error.message || 'No se pudo eliminar el movimiento',
+                    source: 'Contador / Eliminar movimiento',
+                    error,
+                    reproductionSteps: 'Abrir Contador, entrar al detalle de un movimiento, eliminarlo y esperar la confirmacion.',
+                    details: `Movimiento: #${idToDelete}`,
+                });
                 setDeletingId(null);
             }
         }, 4000);
-    }, [selectedMovement, loadData, showNotice]);
+    }, [selectedMovement, loadData, showNotice, reportError]);
 
     const handleUndoDelete = useCallback(() => {
         if (undoTimerRef.current) {
@@ -252,10 +286,7 @@ export function useCashCounterScreen() {
         // Data
         quantities,
         cashState,
-        movements,
-        totalSalesToday,
         salesTabTotal,
-        totalWithdrawalsToday,
         loading,
         refreshing,
         deletingId,
@@ -263,7 +294,6 @@ export function useCashCounterScreen() {
         detailModalVisible,
         setDetailModalVisible,
         inputRefs,
-        DENOMS: DEFAULT_DENOMS,
 
         // Computed
         totalContadoCents,
@@ -284,9 +314,6 @@ export function useCashCounterScreen() {
         handleRefresh,
     };
 }
-
-// Import formatCents locally to avoid circular dependency
-import { formatCents as formatCentsImport } from '../../../shared/utils/money';
 
 type MovementListRow =
     | { type: 'day'; key: string; dayLabel: string }
