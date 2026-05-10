@@ -1,15 +1,19 @@
 import React, { useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView, useWindowDimensions } from 'react-native';
 import { formatCents } from '../../../shared/utils/money';
 import { getDayRangeMs, getWeekRangeMs, formatDateShort, formatTimeNoSeconds } from '../../../shared/utils/dates';
 import { theme } from '../../../ui/theme';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SoftButton, SoftInput } from '../../../ui/components';
+import { useFloatingTabBarClearance } from '../../../ui/navigation/safeAreaMetrics';
 import { useSummaryScreen } from '../hooks/useSummaryScreen';
 
 export const SummaryScreen = () => {
     const insets = useSafeAreaInsets();
+    const { width } = useWindowDimensions();
+    const isCompact = width < 390;
+    const bottomClearance = useFloatingTabBarClearance(theme.spacing.md);
     const {
         currentDate,
         showDatePicker,
@@ -153,16 +157,16 @@ export const SummaryScreen = () => {
             {/* Withdrawal Form */}
             <View style={styles.formCard}>
                 <Text style={styles.formTitle}>Registrar Extracción</Text>
-                <View style={styles.formRow}>
+                <View style={[styles.formRow, isCompact && styles.formRowCompact]}>
                     <SoftInput
-                        containerStyle={[styles.input, { flex: 1 }, amountError && styles.inputError]}
+                        containerStyle={[styles.input, isCompact ? styles.inputCompact : styles.amountInput, amountError && styles.inputError]}
                         placeholder="Monto (0.00)"
                         value={formAmount}
                         onChangeText={handleAmountChange}
                         keyboardType="numeric"
                     />
                     <SoftInput
-                        containerStyle={[styles.input, { flex: 2 }]}
+                        containerStyle={[styles.input, isCompact ? styles.inputCompact : styles.reasonInput]}
                         placeholder="Motivo (opcional)"
                         value={formReason}
                         onChangeText={setFormReason}
@@ -189,7 +193,7 @@ export const SummaryScreen = () => {
                         <Text style={styles.emptyText}>No hay extracciones registradas</Text>
                     }
                     ItemSeparatorComponent={() => <View style={styles.separator} />}
-                    contentContainerStyle={styles.listContent}
+                    contentContainerStyle={[styles.listContent, { paddingBottom: bottomClearance }]}
                     refreshing={loading}
                     onRefresh={handleRefresh}
                     keyboardShouldPersistTaps="handled"
@@ -330,8 +334,26 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         gap: theme.spacing.xs,
     },
+    formRowCompact: {
+        flexDirection: 'column',
+    },
     input: {
         minHeight: 46,
+    },
+    amountInput: {
+        flexGrow: 1,
+        flexShrink: 1,
+        flexBasis: 0,
+    },
+    reasonInput: {
+        flexGrow: 2,
+        flexShrink: 1,
+        flexBasis: 0,
+    },
+    inputCompact: {
+        flexGrow: 0,
+        flexShrink: 0,
+        width: '100%',
     },
     addBtn: {
         minWidth: 64,

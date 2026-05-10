@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { AppScreen, AppButton, SoftCard, SoftButton, SoftInput, useSoftNotice } from '../../../ui/components';
 import { theme, radius } from '../../../ui/theme';
+import { useFloatingTabBarClearance } from '../../../ui/navigation/safeAreaMetrics';
 import { formatCents } from '../../../shared/utils/money';
 import { getDayRangeMs, formatDateTimeWithSeconds, formatTimeNoSeconds, formatDateShort } from '../../../shared/utils/dates';
 import { useCashCounterScreen } from '../hooks/useCashCounterScreen';
@@ -170,6 +171,7 @@ const BalanceComparisonCard = memo(({
 });
 
 export const CashCounterScreen = () => {
+    const bottomClearance = useFloatingTabBarClearance(theme.spacing.md);
     const {
         quantities,
         cashState,
@@ -339,7 +341,7 @@ export const CashCounterScreen = () => {
                     renderItem={renderMovement}
                     ListHeaderComponent={HeaderComponent}
                     ListEmptyComponent={<Text style={styles.emptyText}>No hay movimientos registrados</Text>}
-                    contentContainerStyle={styles.listContent}
+                    contentContainerStyle={[styles.listContent, { paddingBottom: bottomClearance }]}
                     refreshing={refreshing}
                     onRefresh={handleRefresh}
                     removeClippedSubviews={true}
@@ -350,7 +352,7 @@ export const CashCounterScreen = () => {
                 />
 
                 {deletingId !== null && (
-                    <View style={styles.undoContainer}>
+                    <View style={[styles.undoContainer, { bottom: bottomClearance }]}>
                         <Text style={styles.undoText}>Movimiento eliminado</Text>
                         <TouchableOpacity onPress={handleUndoDelete}>
                             <Text style={styles.undoAction}>DESHACER</Text>

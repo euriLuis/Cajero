@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing, useWindowDimensions } from 'react-native';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../../theme';
+import { FLOATING_TAB_BAR_HEIGHT, getBottomSystemGap } from '../../navigation/safeAreaMetrics';
 
 const iconByRoute: Record<string, string> = {
   Venta: 'cart-outline',
@@ -15,7 +16,11 @@ const iconByRoute: Record<string, string> = {
 
 export const SoftTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigation }) => {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const [containerWidth, setContainerWidth] = useState(0);
+  const isCompact = width < 380;
+  const horizontalPadding = isCompact ? 8 : 14;
+  const bottomGap = getBottomSystemGap(insets.bottom);
 
   const tabCount = state.routes.length;
   const trackPadding = 5;
@@ -47,7 +52,17 @@ export const SoftTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, na
   }, [activeIndexAnim, slideX, state.index, tabWidth]);
 
   return (
-    <View style={[styles.wrapper, { paddingBottom: Math.max(insets.bottom, 10) }]} pointerEvents="box-none">
+    <View
+      style={[
+        styles.wrapper,
+        {
+          paddingLeft: Math.max(insets.left, horizontalPadding),
+          paddingRight: Math.max(insets.right, horizontalPadding),
+          paddingBottom: bottomGap,
+        },
+      ]}
+      pointerEvents="box-none"
+    >
       <View
         style={styles.container}
         onLayout={(event) => setContainerWidth(event.nativeEvent.layout.width)}
@@ -102,10 +117,22 @@ export const SoftTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, na
                 <View style={styles.tabInner}>
                   <MaterialCommunityIcons
                     name={iconName}
-                    size={isFocused ? 27 : 21}
+                    size={isFocused ? (isCompact ? 25 : 27) : (isCompact ? 20 : 21)}
                     color={isFocused ? theme.colors.text : theme.colors.textMuted}
                   />
-                  <Text style={[styles.label, isFocused && styles.labelActive]} numberOfLines={1}>{label}</Text>
+                  <Text
+                    style={[
+                      styles.label,
+                      isCompact && styles.labelCompact,
+                      isFocused && styles.labelActive,
+                      isFocused && isCompact && styles.labelActiveCompact,
+                    ]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.78}
+                  >
+                    {label}
+                  </Text>
                 </View>
               </Animated.View>
             </TouchableOpacity>
@@ -122,11 +149,11 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    paddingHorizontal: 14,
     backgroundColor: 'transparent',
   },
   container: {
     flexDirection: 'row',
+    minHeight: FLOATING_TAB_BAR_HEIGHT,
     backgroundColor: theme.colors.surface,
     borderRadius: 20,
     borderWidth: 1,
@@ -156,7 +183,8 @@ const styles = StyleSheet.create({
   },
   tabInner: {
     minHeight: 50,
-    minWidth: 54,
+    minWidth: 0,
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 1,
@@ -166,9 +194,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.colors.textMuted,
   },
+  labelCompact: {
+    fontSize: 10,
+  },
   labelActive: {
     color: theme.colors.text,
     fontSize: 13,
     fontWeight: '700',
+  },
+  labelActiveCompact: {
+    fontSize: 12,
   },
 });

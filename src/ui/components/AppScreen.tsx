@@ -11,7 +11,7 @@ interface AppScreenProps {
 
 export const AppScreen: React.FC<AppScreenProps> = ({ children, padding = true, style }) => {
     return (
-        <SafeAreaView style={[styles.safeArea, style]}>
+        <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safeArea, style]}>
             <View style={[styles.container, padding && styles.withPadding]}>
                 {children}
             </View>

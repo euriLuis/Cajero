@@ -1,10 +1,11 @@
 import React, { memo, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, useWindowDimensions } from 'react-native';
 import { Product } from '../../../shared/domain/models/Product';
 import { formatCents } from '../../../shared/utils/money';
 import { theme } from '../../../ui/theme';
 import { SoftCard, SoftSearchInput, SoftButton, SoftInput } from '../../../ui/components';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFloatingTabBarClearance } from '../../../ui/navigation/safeAreaMetrics';
 import { useProductsScreen } from '../hooks/useProductsScreen';
 
 const ProductRow = memo(({ product, onPress }: { product: Product; onPress: (p: Product) => void }) => (
@@ -18,6 +19,9 @@ const ProductRow = memo(({ product, onPress }: { product: Product; onPress: (p: 
 
 export const ProductsScreen = () => {
     const insets = useSafeAreaInsets();
+    const { width } = useWindowDimensions();
+    const isCompact = width < 390;
+    const bottomClearance = useFloatingTabBarClearance(theme.spacing.md);
     const {
         products,
         search,
@@ -39,17 +43,17 @@ export const ProductsScreen = () => {
 
     const renderHeader = useMemo(() => (
         <View style={styles.headerContainer}>
-            <View style={styles.topBar}>
+            <View style={[styles.topBar, isCompact && styles.topBarCompact]}>
                 <SoftSearchInput
-                    containerStyle={styles.searchInput}
+                    containerStyle={[styles.searchInput, isCompact && styles.searchInputCompact]}
                     placeholder="Buscar producto..."
                     value={search}
                     onChangeText={setSearch}
                 />
-                <SoftButton label="＋ Agregar producto" onPress={handleOpenAdd} style={styles.addProductBtn} />
+                <SoftButton label="＋ Agregar producto" onPress={handleOpenAdd} style={[styles.addProductBtn, isCompact && styles.addProductBtnCompact]} />
             </View>
         </View>
-    ), [search, setSearch, handleOpenAdd]);
+    ), [search, setSearch, handleOpenAdd, isCompact]);
 
     const renderItem = useCallback(({ item }: { item: Product }) => (
         <ProductRow product={item} onPress={handleOpenEdit} />
@@ -64,7 +68,7 @@ export const ProductsScreen = () => {
                 renderItem={renderItem}
                 ListHeaderComponent={renderHeader}
                 ListEmptyComponent={<Text style={styles.emptyText}>No hay productos</Text>}
-                contentContainerStyle={styles.listContent}
+                contentContainerStyle={[styles.listContent, { paddingBottom: bottomClearance }]}
                 refreshing={loading}
                 onRefresh={handleRefresh}
                 removeClippedSubviews={true}
@@ -98,8 +102,11 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: theme.colors.background, paddingTop: 10 },
     headerContainer: { paddingHorizontal: theme.spacing.base, paddingBottom: theme.spacing.sm },
     topBar: { flexDirection: 'row', gap: theme.spacing.sm, alignItems: 'center' },
+    topBarCompact: { flexDirection: 'column', alignItems: 'stretch' },
     searchInput: { flexBasis: '50%', flexGrow: 0, flexShrink: 1 },
+    searchInputCompact: { flexBasis: undefined, width: '100%' },
     addProductBtn: { minHeight: 48, paddingHorizontal: theme.spacing.lg, backgroundColor: theme.colors.surface },
+    addProductBtnCompact: { width: '100%' },
     listContent: { paddingHorizontal: theme.spacing.base, paddingBottom: theme.spacing.xl, gap: theme.spacing.sm },
     itemCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: theme.spacing.md },
     itemName: { ...theme.typography.body, color: theme.colors.text, flex: 1 },

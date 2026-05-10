@@ -5,12 +5,15 @@ import { formatCents } from '../../../shared/utils/money';
 import { theme } from '../../../ui/theme';
 import { SoftInput } from '../../../ui/components';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFloatingTabBarClearance } from '../../../ui/navigation/safeAreaMetrics';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { formatDateShort } from '../../../shared/utils/dates';
 import { useSaleScreen, CartItem } from '../hooks/useSaleScreen';
 
 export const SaleScreen = () => {
     const insets = useSafeAreaInsets();
+    const bottomTabClearance = useFloatingTabBarClearance();
+    const bottomActionOffset = bottomTabClearance + 4;
     const {
         products,
         loading,
@@ -87,7 +90,7 @@ export const SaleScreen = () => {
     return (
         <View style={[styles.container, { paddingTop: Math.max(insets.top, 10) + 4 }]}>
 
-            <View style={styles.card}>
+            <View style={[styles.card, { paddingBottom: BOTTOM_BAR_HEIGHT + bottomActionOffset + 10 }]}>
                 {/* Date Selector */}
                 <TouchableOpacity
                     style={styles.dateSelector}
@@ -168,7 +171,7 @@ export const SaleScreen = () => {
             </View>
 
             {/* Fixed Bottom Bar */}
-            <View style={[styles.bottomBar, { bottom: TAB_BAR_CLEARANCE + Math.max(insets.bottom, 10) }]}>
+            <View style={[styles.bottomBar, { bottom: bottomActionOffset }]}>
                 <View style={styles.totalSection}>
                     <Text style={styles.totalLabel}>Total:</Text>
                     <Text style={styles.totalValue}>{formatCents(totalCents)}</Text>
@@ -190,7 +193,7 @@ export const SaleScreen = () => {
                 onRequestClose={() => setSelectorModalVisible(false)}
             >
                 <Animated.View style={[styles.modalOverlay, { opacity: overlayOpacity }]}>
-                    <Animated.View style={[styles.modalContent, { transform: [{ translateY: modalTranslateY }] }]}>
+                    <Animated.View style={[styles.modalContent, { paddingBottom: theme.spacing.lg + insets.bottom, transform: [{ translateY: modalTranslateY }] }]}>
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>Seleccionar Producto</Text>
                             <TouchableOpacity onPress={() => setSelectorModalVisible(false)}>
@@ -229,7 +232,6 @@ export const SaleScreen = () => {
 };
 
 const BOTTOM_BAR_HEIGHT = 70;
-const TAB_BAR_CLEARANCE = 84;
 
 const styles = StyleSheet.create({
     container: {
@@ -246,7 +248,6 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: theme.colors.border,
         overflow: 'hidden',
-        paddingBottom: BOTTOM_BAR_HEIGHT + TAB_BAR_CLEARANCE + 10,
     },
     dateSelector: {
         flexDirection: 'row',
@@ -457,7 +458,6 @@ const styles = StyleSheet.create({
     },
     bottomBar: {
         position: 'absolute',
-        bottom: TAB_BAR_CLEARANCE,
         left: 0,
         right: 0,
         height: BOTTOM_BAR_HEIGHT,

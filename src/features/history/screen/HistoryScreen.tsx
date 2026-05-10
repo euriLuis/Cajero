@@ -8,6 +8,7 @@ import { theme } from '../../../ui/theme';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SoftInput } from '../../../ui/components';
+import { useFloatingTabBarClearance } from '../../../ui/navigation/safeAreaMetrics';
 import { useHistoryScreen, EditDraft } from '../hooks/useHistoryScreen';
 
 // 2) Optimized Row Components
@@ -147,6 +148,7 @@ const SaleDetailItemRow = memo(({
 
 export const HistoryScreen = () => {
     const insets = useSafeAreaInsets();
+    const bottomClearance = useFloatingTabBarClearance(theme.spacing.md);
     const {
         sales,
         loading,
@@ -242,7 +244,7 @@ export const HistoryScreen = () => {
                     ListHeaderComponent={renderHeader}
                     ListEmptyComponent={<Text style={styles.emptyText}>No hay ventas registradas</Text>}
                     ItemSeparatorComponent={() => <View style={styles.separator} />}
-                    contentContainerStyle={styles.listContent}
+                    contentContainerStyle={[styles.listContent, { paddingBottom: bottomClearance }]}
                     refreshing={loading}
                     onRefresh={handleRefresh}
 
@@ -351,7 +353,7 @@ export const HistoryScreen = () => {
                                     onRequestClose={() => setEditProductSelectorVisible(false)}
                                 >
                                     <View style={styles.productSelectorOverlay}>
-                                        <View style={styles.productSelectorContent}>
+                                        <View style={[styles.productSelectorContent, { paddingBottom: theme.spacing.md + insets.bottom }]}>
                                             <View style={styles.productSelectorHeader}>
                                                 <Text style={styles.productSelectorTitle}>Seleccionar Producto</Text>
                                                 <TouchableOpacity onPress={() => setEditProductSelectorVisible(false)}>
