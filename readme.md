@@ -2,6 +2,13 @@
 
 A mobile point-of-sale and cash management app built with **React Native** and **Expo**. Designed for small retail stores to track sales, manage products, reconcile cash, and generate daily/weekly summaries — entirely **offline** using on-device SQLite.
 
+**Versión actual: 0.7.12 · Android versionCode 712**
+
+### Novedades de 0.7.12
+- Resumen con nombres largos de productos, cantidad y facturación individual conciliada con el total facturado.
+- Editor de ventas reorganizado para móvil, con campos claros y acciones Guardar/Cancelar.
+- Contador ampliado con billetes de $2000 y $5000, validaciones defensivas y pruebas SQLite de regresión.
+
 ---
 
 ## Features
@@ -12,7 +19,7 @@ A mobile point-of-sale and cash management app built with **React Native** and *
 - Transactional sale insertion with draft persistence across restarts
 
 ### 💰 Contador (Cash Counter)
-- Physical cash counting with 8 denomination levels ($5 – $1000)
+- Physical cash counting with 10 denomination levels ($5 – $5000), including $2000 and $5000
 - Real-time subtotals and auto-save (debounced)
 - Balance comparison: expected vs. counted cash
 - Add/withdraw cash movements (IN/OUT) with full history
@@ -146,7 +153,11 @@ Cajero/
 |---|---|
 | `npm start` | Start Expo dev server |
 | `npm run android` | Start Expo on Android |
+| `npm test` | Run the existing suites and expanded cash regression tests (Node.js 24) |
+| `npm run test:cash` | Run the 127 cash robustness tests against isolated SQLite databases |
 | `npm run build:apk` | Build Android APK via EAS |
+
+See [cash testing and manual QA](docs/cash-counter-tests.md) for coverage, commands, and remaining device checks.
 
 ---
 

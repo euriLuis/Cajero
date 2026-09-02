@@ -1,6 +1,6 @@
 {
   "name": "tienda-caja-v2",
-  "version": "1.1.0",
+  "version": "0.7.12",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
@@ -8,8 +8,10 @@
     "start:tunnel": "expo start --tunnel --clear",
     "start:localhost": "expo start --localhost --clear",
     "android": "expo start --android",
-    "test": "npm run test:unit",
-    "test:unit": "tsc -p tsconfig.test.json && node tests/unit.test.js && node tests/repositories.test.js",
+    "test": "npm run test:unit && npm run test:cash && npm run test:summary",
+    "test:unit": "tsc -p tsconfig.test.json && node tests/unit.test.js && node tests/repositories.test.js && node tests/localDay.test.js && node tests/cashDay.test.js",
+    "test:cash": "tsc -p tsconfig.test.json && node --test tests/cashRobustness.test.js",
+    "test:summary": "tsc -p tsconfig.test.json && node --test tests/summaryRevenue.test.js",
     "build:apk": "eas build --platform android --profile preview"
   },
   "dependencies": {
@@ -18,7 +20,7 @@
     "@react-navigation/native": "^6.1.18",
     "@react-navigation/native-stack": "^6.10.0",
     "@types/lodash.debounce": "^4.0.9",
-    "expo": "~54.0.34",
+    "expo": "~54.0.37",
     "expo-sqlite": "~16.0.10",
     "expo-status-bar": "~3.0.9",
     "lodash.debounce": "^4.0.8",

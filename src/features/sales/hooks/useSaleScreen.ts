@@ -3,6 +3,7 @@ import { Animated, Easing } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { productsRepo, salesRepo } from '../../../data/repositories';
 import { Product } from '../../../shared/domain/models/Product';
+import { useLocalDateSelection } from '../../../shared/hooks/useLocalDateSelection';
 import { useErrorReporter, useSoftNotice } from '../../../ui/components';
 import { validateQuantity } from '../../shared/utils/validation';
 import { calculateCartTotal, addToCart, updateCartQty, removeFromCart as removeCartItem, combineDateWithCurrentTime, CartItem } from '../utils/cartCalculations';
@@ -13,7 +14,7 @@ export function useSaleScreen() {
     const [products, setProducts] = useState<Product[]>([]);
     const [refreshing, setRefreshing] = useState(false);
 
-    const [selectedDate, setSelectedDate] = useState(new Date());
+    const { currentDate: selectedDate, setCurrentDate: setSelectedDate, getSelectedDate, selectQuickDate } = useLocalDateSelection();
     const [showDatePicker, setShowDatePicker] = useState(false);
 
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -103,8 +104,8 @@ export function useSaleScreen() {
 
     const handleDateChange = useCallback((event: any, date?: Date) => {
         setShowDatePicker(false);
-        if (date) setSelectedDate(date);
-    }, []);
+        if (event.type === 'set' && date) setSelectedDate(date);
+    }, [setSelectedDate]);
 
     const handleSelectProduct = useCallback((product: Product) => {
         setSelectedProduct(product);
@@ -177,7 +178,8 @@ export function useSaleScreen() {
 
         setIsSaving(true);
         try {
-            const createdAt = combineDateWithCurrentTime(selectedDate);
+            const now = new Date();
+            const createdAt = combineDateWithCurrentTime(getSelectedDate(now), now);
 
             await salesRepo.createSale({
                 items: cart,
@@ -185,7 +187,7 @@ export function useSaleScreen() {
             });
             showNotice({ title: 'Venta registrada', message: 'La venta se guardó correctamente', type: 'success' });
             setCart([]);
-            setSelectedDate(new Date());
+            selectQuickDate('today');
         } catch (error) {
             showNotice({ title: 'Error', message: 'No se pudo registrar la venta', type: 'error' });
             reportError({
@@ -199,7 +201,7 @@ export function useSaleScreen() {
         } finally {
             setIsSaving(false);
         }
-    }, [cart, selectedDate, isSaving, showNotice, reportError, totalCents]);
+    }, [cart, selectedDate, getSelectedDate, selectQuickDate, isSaving, showNotice, reportError, totalCents]);
 
     const handleRefresh = useCallback(() => loadProducts(true), [loadProducts]);
 

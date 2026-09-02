@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const { getCurrentLocalDateStr } = require('../.test-build/src/shared/utils/dates');
 
 const buildRoot = path.join(__dirname, '..', '.test-build');
 const dbIndexPath = path.join(buildRoot, 'src', 'data', 'db', 'index.js');
@@ -41,6 +42,10 @@ const createMockDb = ({ all = [], first = [], run = [] } = {}) => {
     async withTransactionAsync(fn) {
       calls.push({ method: 'withTransactionAsync' });
       return await fn();
+    },
+    async withExclusiveTransactionAsync(fn) {
+      calls.push({ method: 'withExclusiveTransactionAsync' });
+      return await fn(db);
     },
     async execAsync(sql) {
       calls.push({ method: 'execAsync', sql, params: [] });
@@ -148,7 +153,7 @@ test('salesRepo maps reads and summary records', async () => {
         { sale_id: 1, product_name_snapshot: 'Cafe', qty: 2 },
         { sale_id: 1, product_name_snapshot: 'Pan', qty: 3 },
       ],
-      [{ product_name_snapshot: 'Cafe', total_qty: 5 }],
+      [{ product_name_snapshot: 'Cafe', total_qty: 5, total_cents: 1250 }],
     ],
     first: [{ total: 900 }],
   });
@@ -167,7 +172,7 @@ test('salesRepo maps reads and summary records', async () => {
   }]);
   assert.equal(await salesRepo.sumSalesByRange(1, 2), 900);
   assert.deepEqual(await salesRepo.getSaleItemsSummaryMap([1, 2]), { 1: 'Cafe x2, Pan x3', 2: '' });
-  assert.deepEqual(await salesRepo.getProductsSoldSummary(1, 2), [{ productName: 'Cafe', totalQty: 5 }]);
+  assert.deepEqual(await salesRepo.getProductsSoldSummary(1, 2), [{ productName: 'Cafe', totalQty: 5, totalCents: 1250 }]);
 });
 
 test('salesRepo updates, recalculates, deletes and stores draft totals', async () => {
@@ -247,8 +252,11 @@ test('cashRepo applies movements and rejects invalid cash operations', async () 
   let cashState = { denoms: { 100: 2 }, updatedAt: 'now' };
   const db = createMockDb({
     all: [
+      [{ value: getCurrentLocalDateStr() }],
       () => [{ denominations_json: JSON.stringify(cashState.denoms), updated_at: cashState.updatedAt }],
+      [{ value: getCurrentLocalDateStr() }],
       () => [{ denominations_json: JSON.stringify(cashState.denoms), updated_at: cashState.updatedAt }],
+      [{ value: getCurrentLocalDateStr() }],
       () => [{ denominations_json: JSON.stringify(cashState.denoms), updated_at: cashState.updatedAt }],
     ],
     run: [
@@ -265,6 +273,30 @@ test('cashRepo applies movements and rejects invalid cash operations', async () 
 
   await assert.rejects(() => cashRepo.applyMovement('OUT', { 1000: 1 }), /No hay suficientes/);
   await assert.rejects(() => cashRepo.applyMovement('IN', {}), /conteo actual/);
+});
+
+test('cashRepo adds and subtracts 2000 and 5000 bills from an older cash state', async () => {
+  let denoms = { 100: 2 };
+  const readState = () => [{ denominations_json: JSON.stringify(denoms), updated_at: 'now' }];
+  const saveState = (_sql, params) => { denoms = JSON.parse(params[0]); return {}; };
+  const db = createMockDb({
+    all: Array.from({ length: 4 }, () => [[{ value: getCurrentLocalDateStr() }], readState]).flat(),
+    run: [saveState, {}, saveState, {}],
+  });
+  installDbMock(db);
+  const { cashRepo } = loadFresh(path.join(buildRoot, 'src', 'data', 'repositories', 'cashRepo.js'));
+
+  await cashRepo.applyMovement('IN', { 2000: 3, 5000: 2 }, 'entrada');
+  assert.deepEqual(denoms, { 100: 2, 2000: 3, 5000: 2 });
+  assert.deepEqual(getRunCalls(db)[1].params.slice(0, 3), ['IN', 1600000, '{"2000":3,"5000":2}']);
+
+  await cashRepo.applyMovement('OUT', { 2000: 1, 5000: 1 }, 'salida');
+  assert.deepEqual(denoms, { 100: 2, 2000: 2, 5000: 1 });
+  assert.deepEqual(getRunCalls(db)[3].params.slice(0, 3), ['OUT', 700000, '{"2000":1,"5000":1}']);
+
+  await assert.rejects(() => cashRepo.applyMovement('OUT', { 2000: 3 }), /No hay suficientes billetes\/monedas de \$2000/);
+  await assert.rejects(() => cashRepo.applyMovement('OUT', { 5000: 2 }), /No hay suficientes billetes\/monedas de \$5000/);
+  assert.equal(getRunCalls(db).length, 4);
 });
 
 test('cashRepo deletes movements by reversing denomination effects', async () => {

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { Alert } from 'react-native';
 import { salesRepo, productsRepo } from '../../../data/repositories';
@@ -6,6 +6,7 @@ import { Sale } from '../../../shared/domain/models/Sale';
 import { SaleItem } from '../../../shared/domain/models/SaleItem';
 import { Product } from '../../../shared/domain/models/Product';
 import { getDayRangeMs } from '../../../shared/utils/dates';
+import { useLocalDateSelection } from '../../../shared/hooks/useLocalDateSelection';
 import { parseMoneyToCents } from '../../../shared/utils/money';
 import { useErrorReporter, useSoftNotice } from '../../../ui/components';
 import { isToday, isYesterday } from '../../shared/utils/dateComparisons';
@@ -24,7 +25,7 @@ export type EditDraft = {
 export function useHistoryScreen() {
     const [sales, setSales] = useState<Sale[]>([]);
     const [loading, setLoading] = useState(false);
-    const [currentDate, setCurrentDate] = useState(new Date());
+    const { currentDate, setCurrentDate, selectQuickDate, getSelectedDate, localDay } = useLocalDateSelection();
     const [showPicker, setShowPicker] = useState(false);
 
     const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
@@ -44,22 +45,34 @@ export function useHistoryScreen() {
     const [itemsSummaryBySaleId, setItemsSummaryBySaleId] = useState<Record<number, string>>({});
     const { showNotice } = useSoftNotice();
     const { reportError } = useErrorReporter();
+    const viewKey = `${currentDate.getTime()}|${localDay}`;
+    const activeViewKey = useRef(viewKey);
+    activeViewKey.current = viewKey;
+    const loadVersion = useRef(0);
+    const dataViewKey = useRef('');
 
     const loadSales = useCallback(async () => {
+        if (activeViewKey.current !== viewKey) return;
+        const version = ++loadVersion.current;
+        const isCurrent = () => version === loadVersion.current && activeViewKey.current === viewKey;
+        if (dataViewKey.current !== viewKey) {
+            setSales([]);
+            setItemsSummaryBySaleId({});
+            dataViewKey.current = viewKey;
+        }
         setLoading(true);
         try {
-            const { startMs, endMs } = getDayRangeMs(currentDate);
+            const { startMs, endMs } = getDayRangeMs(getSelectedDate());
             const list = await salesRepo.listSalesByRange(startMs, endMs);
+            if (!isCurrent()) return;
+            const summaryMap = list.length > 0
+                ? await salesRepo.getSaleItemsSummaryMap(list.map(s => s.id))
+                : {};
+            if (!isCurrent()) return;
             setSales(list);
-
-            if (list.length > 0) {
-                const saleIds = list.map(s => s.id);
-                const summaryMap = await salesRepo.getSaleItemsSummaryMap(saleIds);
-                setItemsSummaryBySaleId(summaryMap);
-            } else {
-                setItemsSummaryBySaleId({});
-            }
+            setItemsSummaryBySaleId(summaryMap);
         } catch (error) {
+            if (!isCurrent()) return;
             showNotice({ title: 'Error', message: 'No se pudieron cargar las ventas', type: 'error' });
             reportError({
                 title: 'Error cargando ventas',
@@ -70,24 +83,25 @@ export function useHistoryScreen() {
                 details: `Fecha seleccionada: ${currentDate.toISOString()}`,
             });
         } finally {
-            setLoading(false);
+            if (isCurrent()) setLoading(false);
         }
-    }, [currentDate, showNotice, reportError]);
+    }, [viewKey, getSelectedDate, currentDate, showNotice, reportError]);
+    const latestLoadSales = useRef(loadSales);
+    latestLoadSales.current = loadSales;
 
     useFocusEffect(useCallback(() => {
         loadSales();
+        return () => { loadVersion.current += 1; };
     }, [loadSales]));
 
     const handleQuickDate = useCallback((type: 'today' | 'yesterday') => {
-        const newDate = new Date();
-        if (type === 'yesterday') newDate.setDate(newDate.getDate() - 1);
-        setCurrentDate(newDate);
-    }, []);
+        selectQuickDate(type);
+    }, [selectQuickDate]);
 
     const onPickerChange = useCallback((event: any, selectedDate?: Date) => {
         setShowPicker(false);
-        if (selectedDate) setCurrentDate(selectedDate);
-    }, []);
+        if (event.type === 'set' && selectedDate) setCurrentDate(selectedDate);
+    }, [setCurrentDate]);
 
     const handleEditModeToggle = useCallback(() => {
         if (isEditMode) {
@@ -285,14 +299,17 @@ export function useHistoryScreen() {
 
             const updatedItems = await salesRepo.getSaleItems(selectedSale.id);
             setSaleItems(updatedItems);
+            setSelectedSale(current => current?.id === selectedSale.id
+                ? { ...current, totalCents: updatedItems.reduce((total, item) => total + item.lineTotalCents, 0) }
+                : current);
 
             if (updatedItems.length === 0) {
                 setDetailModalVisible(false);
-                await loadSales();
+                await latestLoadSales.current();
             } else {
                 setIsEditMode(false);
                 setEditedItems(new Map());
-                await loadSales();
+                await latestLoadSales.current();
                 showNotice({ title: 'Éxito', message: 'Cambios guardados', type: 'success' });
             }
         } catch (error) {
@@ -319,7 +336,7 @@ export function useHistoryScreen() {
                     try {
                         await salesRepo.deleteSale(selectedSale.id);
                         setDetailModalVisible(false);
-                        await loadSales();
+                        await latestLoadSales.current();
                         showNotice({ title: 'Éxito', message: 'Venta eliminada', type: 'success' });
                     } catch (error) {
                         showNotice({ title: 'Error', message: 'No se pudo eliminar', type: 'error' });

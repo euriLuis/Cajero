@@ -96,7 +96,7 @@ export const SummaryScreen = () => {
                     <Text style={[styles.summaryValue, isCompact && styles.summaryValueCompact, styles.summaryValueDanger]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>-{formatCents(totalWithdrawals)}</Text>
                 </View>
                 <View style={[styles.summaryCard, isCompact && styles.summaryCardCompact, styles.summaryCardSuccess]}>
-                    <Text style={[styles.summaryLabel, isCompact && styles.summaryLabelCompact]}>Caja</Text>
+                    <Text style={[styles.summaryLabel, isCompact && styles.summaryLabelCompact]}>Esperado en caja</Text>
                     <Text style={[styles.summaryValue, isCompact && styles.summaryValueCompact, styles.summaryValueSuccess]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>{formatCents(netBalance)}</Text>
                 </View>
             </View>
@@ -124,10 +124,11 @@ export const SummaryScreen = () => {
                         <Text style={styles.productsSectionTitle}>📦 Productos Vendidos</Text>
                     </View>
                     <View style={[styles.productsGrid, isCompact && styles.productsGridCompact]}>
-                        {productsSold.map((product, index) => (
-                            <View key={index} style={[styles.productItem, isCompact && styles.productItemCompact]}>
-                                <Text style={styles.productName} numberOfLines={1}>{product.productName}</Text>
-                                <Text style={styles.productQty}>Total: {product.totalQty}</Text>
+                        {productsSold.map(product => (
+                            <View key={product.productName} style={[styles.productItem, isCompact && styles.productItemCompact]}>
+                                <Text selectable style={styles.productName}>{product.productName}</Text>
+                                <Text selectable style={styles.productQty}>Cantidad: {product.totalQty}</Text>
+                                <Text selectable style={styles.productRevenue}>Facturado: {formatCents(product.totalCents)}</Text>
                             </View>
                         ))}
                     </View>
@@ -553,7 +554,8 @@ const styles = StyleSheet.create({
         display: 'flex',
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: theme.spacing.md,
+        gap: theme.spacing.sm,
+        justifyContent: 'space-between',
     },
     productsGridCompact: {
         gap: theme.spacing.sm,
@@ -565,7 +567,8 @@ const styles = StyleSheet.create({
         paddingVertical: theme.spacing.sm,
         borderWidth: 1,
         borderColor: '#3B82F6',
-        minWidth: '45%',
+        minWidth: 0,
+        width: '48%',
     },
     productItemCompact: {
         minWidth: 0,
@@ -577,9 +580,20 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: theme.colors.text,
         marginBottom: theme.spacing.xs,
+        flexShrink: 1,
     },
     productQty: {
         ...theme.typography.caption,
         color: '#3B82F6',
         fontWeight: '600',
-    },});
+        fontVariant: ['tabular-nums'],
+    },
+    productRevenue: {
+        ...theme.typography.body,
+        fontSize: 14,
+        fontWeight: '700',
+        color: theme.colors.text,
+        marginTop: theme.spacing.xs,
+        fontVariant: ['tabular-nums'],
+    },
+});

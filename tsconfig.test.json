@@ -13,6 +13,7 @@
     "src/data/db/**/*.ts",
     "src/data/repositories/**/*.ts",
     "src/shared/utils/**/*.ts",
+    "src/shared/time/**/*.ts",
     "src/features/shared/utils/**/*.ts",
     "src/features/cash/utils/**/*.ts",
     "src/features/sales/utils/**/*.ts",

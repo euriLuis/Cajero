@@ -1,5 +1,5 @@
 import React, { memo, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, KeyboardAvoidingView, Platform, useWindowDimensions } from 'react-native';
 import { Sale } from '../../../shared/domain/models/Sale';
 import { SaleItem } from '../../../shared/domain/models/SaleItem';
 import { formatCents, parseMoneyToCents } from '../../../shared/utils/money';
@@ -66,7 +66,7 @@ const SaleDetailItemRow = memo(({
             {!isEditMode ? (
                 <>
                     <View style={styles.itemNameCol}>
-                        <Text style={styles.itemNameSnp} numberOfLines={1}>{item.productNameSnapshot}</Text>
+                        <Text selectable style={styles.itemNameSnp}>{item.productNameSnapshot}</Text>
                         <Text style={styles.itemPriceSnp}>{formatCents(item.unitPriceSnapshotCents)} c/u</Text>
                     </View>
                     <View style={styles.itemQtyCol}>
@@ -78,6 +78,7 @@ const SaleDetailItemRow = memo(({
                 <View style={[styles.editItemContainer, isDeleted && styles.deletedItemContainer]}>
                     {isDeleted ? (
                         <View style={styles.deletedOverlay}>
+                            <Text selectable style={styles.itemNameSnp}>{item.productNameSnapshot}</Text>
                             <Text style={styles.deletedText}>Marcado para eliminar</Text>
                             <TouchableOpacity style={styles.restoreBtn} onPress={() => onRestore(item.id)}>
                                 <Text style={styles.restoreBtnText}>↶ Restaurar</Text>
@@ -86,57 +87,60 @@ const SaleDetailItemRow = memo(({
                     ) : (
                         <>
                             <View style={styles.editItemHeader}>
-                                <Text style={styles.itemNameSnp}>{item.productNameSnapshot}</Text>
-                                <TouchableOpacity style={styles.deleteItemIconBtn} onPress={() => onDelete(item.id)}>
+                                <Text selectable style={[styles.itemNameSnp, styles.editItemName]}>{item.productNameSnapshot}</Text>
+                                <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Eliminar ${item.productNameSnapshot}`} style={styles.deleteItemIconBtn} onPress={() => onDelete(item.id)}>
                                     <Text style={styles.deleteItemIcon}>✕</Text>
                                 </TouchableOpacity>
                             </View>
 
-                            <View style={styles.originalValuesRow}>
-                                <Text style={styles.originalValueText}>
-                                    Cant: <Text style={styles.originalValueBold}>{item.qty}</Text>
-                                </Text>
-                                <Text style={styles.originalValueText}>
-                                    P: <Text style={styles.originalValueBold}>{formatCents(item.unitPriceSnapshotCents)}</Text>
-                                </Text>
-                            </View>
+                            <Text selectable style={styles.originalValueText}>
+                                Original: {item.qty} × {formatCents(item.unitPriceSnapshotCents)}
+                            </Text>
 
                             <View style={styles.editRow}>
                                 <View style={styles.editField}>
-                                    <Text style={styles.editLabel}>Cant.</Text>
+                                    <Text style={styles.editLabel}>Cantidad</Text>
                                     <View style={styles.qtyControlRow}>
-                                        <TouchableOpacity style={styles.qtyBtn} onPress={() => onDecrement(item.id)}>
+                                        <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Disminuir cantidad de ${item.productNameSnapshot}`} style={styles.qtyBtn} onPress={() => onDecrement(item.id)}>
                                             <Text style={styles.qtyBtnText}>−</Text>
                                         </TouchableOpacity>
                                         <SoftInput
-                                            containerStyle={styles.editInput}
+                                            containerStyle={[styles.editInput, styles.qtyInput, !!error && styles.inputError]}
+                                            inputStyle={styles.editInputText}
+                                            accessibilityLabel={`Cantidad de ${item.productNameSnapshot}`}
                                             size="compact"
                                             keyboardType="number-pad"
                                             value={draft.qty}
                                             onChangeText={(t) => onQtyChange(item.id, t)}
                                             placeholder={item.qty.toString()}
+                                            selectTextOnFocus
                                         />
-                                        <TouchableOpacity style={styles.qtyBtn} onPress={() => onIncrement(item.id)}>
+                                        <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Aumentar cantidad de ${item.productNameSnapshot}`} style={styles.qtyBtn} onPress={() => onIncrement(item.id)}>
                                             <Text style={styles.qtyBtnText}>+</Text>
                                         </TouchableOpacity>
                                     </View>
                                 </View>
 
                                 <View style={styles.editField}>
-                                    <Text style={styles.editLabel}>Precio</Text>
+                                    <Text style={styles.editLabel}>Precio unitario</Text>
                                     <SoftInput
                                         containerStyle={[styles.editInput, !!error && styles.inputError]}
+                                        inputStyle={styles.editInputText}
+                                        accessibilityLabel={`Precio unitario de ${item.productNameSnapshot}`}
                                         size="compact"
                                         keyboardType="decimal-pad"
                                         value={draft.price}
                                         onChangeText={(t) => onPriceChange(item.id, t)}
                                         placeholder={formatCents(item.unitPriceSnapshotCents)}
+                                        selectTextOnFocus
                                     />
                                 </View>
                             </View>
 
+                            {!!error && <Text accessibilityRole="alert" style={styles.editErrorText}>{error}</Text>}
                             <View style={styles.editSubtotal}>
-                                <Text style={styles.editSubtotalValue}>{formatCents(displayLineTotal)}</Text>
+                                <Text style={styles.editLabel}>Subtotal</Text>
+                                <Text selectable style={styles.editSubtotalValue}>{formatCents(displayLineTotal)}</Text>
                             </View>
                         </>
                     )}
@@ -270,17 +274,20 @@ export const HistoryScreen = () => {
                 animationType="fade"
                 onRequestClose={() => setDetailModalVisible(false)}
             >
-                <View style={[styles.modalOverlay, isCompact && styles.modalOverlayCompact]}>
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={[styles.modalOverlay, isCompact && styles.modalOverlayCompact, { paddingTop: Math.max(insets.top, 12), paddingBottom: Math.max(insets.bottom, 12) }]}
+                >
                     <View style={[styles.modalContent, isCompact && styles.modalContentCompact]}>
                         <View style={[styles.modalHeader, isCompact && styles.modalHeaderCompact]}>
-                            <Text style={styles.modalTitle}>Detalle de Venta</Text>
+                            <Text style={styles.modalTitle}>{isEditMode ? 'Editar venta' : 'Detalle de Venta'}</Text>
                             <View style={[styles.modalHeaderActions, isCompact && styles.modalHeaderActionsCompact]}>
-                                <TouchableOpacity style={[styles.headerBtn, styles.headerEditBtn]} onPress={handleEditModeToggle}>
+                                {!isEditMode && <TouchableOpacity style={[styles.headerBtn, styles.headerEditBtn]} onPress={handleEditModeToggle}>
                                     <Text style={styles.headerBtnText}>✏️ Editar</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={[styles.headerBtn, styles.headerDeleteBtn]} onPress={handleDeleteSale}>
+                                </TouchableOpacity>}
+                                {!isEditMode && <TouchableOpacity style={[styles.headerBtn, styles.headerDeleteBtn]} onPress={handleDeleteSale}>
                                     <Text style={styles.headerBtnText}>🗑️</Text>
-                                </TouchableOpacity>
+                                </TouchableOpacity>}
                                 <TouchableOpacity onPress={() => setDetailModalVisible(false)}>
                                     <Text style={styles.modalClose}>✕</Text>
                                 </TouchableOpacity>
@@ -316,14 +323,14 @@ export const HistoryScreen = () => {
                             )}
                             ItemSeparatorComponent={() => <View style={styles.separator} />}
                             style={styles.itemsList}
-                            removeClippedSubviews={true}
+                            keyboardShouldPersistTaps="handled"
+                            keyboardDismissMode="on-drag"
+                            removeClippedSubviews={false}
                             initialNumToRender={8}
                             maxToRenderPerBatch={8}
                             updateCellsBatchingPeriod={50}
                             windowSize={5}
-                        />
-
-                        {isEditMode && (
+                            ListFooterComponent={isEditMode ? (
                             <View style={styles.addProductSection}>
                                 <Text style={styles.addProductSectionTitle}>Agregar producto a la venta</Text>
 
@@ -332,7 +339,7 @@ export const HistoryScreen = () => {
                                     style={styles.addProductSelector}
                                     onPress={() => setEditProductSelectorVisible(true)}
                                 >
-                                    <Text style={editSelectedProduct ? styles.addProductSelectorSelected : styles.addProductSelectorPlaceholder} numberOfLines={1}>
+                                    <Text style={editSelectedProduct ? styles.addProductSelectorSelected : styles.addProductSelectorPlaceholder}>
                                         {editSelectedProduct ? editSelectedProduct.name : 'Seleccionar producto...'}
                                     </Text>
                                     <Text style={styles.addProductSelectorArrow}>▼</Text>
@@ -415,7 +422,8 @@ export const HistoryScreen = () => {
                                     </View>
                                 </Modal>
                             </View>
-                        )}
+                            ) : null}
+                        />
 
                         {isEditMode && (
                             <View style={[styles.actionButtonsContainer, isCompact && styles.actionButtonsContainerCompact]}>
@@ -423,16 +431,17 @@ export const HistoryScreen = () => {
                                     style={[styles.actionBtn, styles.saveBtn, editErrors.size > 0 && styles.actionBtnDisabled]}
                                     onPress={handleSaveEdits}
                                     disabled={editErrors.size > 0}
+                                    accessibilityRole="button"
                                 >
-                                    <Text style={styles.actionBtnText}>✓ Guardar</Text>
+                                    <Text style={styles.actionBtnText}>Guardar</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity style={[styles.actionBtn, styles.cancelBtn]} onPress={handleEditModeToggle}>
-                                    <Text style={styles.actionBtnText}>✕ Cancelar</Text>
+                                <TouchableOpacity accessibilityRole="button" style={[styles.actionBtn, styles.cancelBtn]} onPress={handleEditModeToggle}>
+                                    <Text style={[styles.actionBtnText, styles.cancelBtnText]}>Cancelar</Text>
                                 </TouchableOpacity>
                             </View>
                         )}
                     </View>
-                </View>
+                </KeyboardAvoidingView>
             </Modal>
         </View>
     );
@@ -459,11 +468,11 @@ const styles = StyleSheet.create({
     emptyText: { textAlign: 'center', color: '#888', padding: 40 },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
     modalOverlayCompact: { padding: 10 },
-    modalContent: { backgroundColor: '#FFF', borderRadius: 12, maxHeight: '90%', overflow: 'hidden' },
-    modalContentCompact: { maxHeight: '94%' },
+    modalContent: { backgroundColor: '#FFF', borderRadius: 12, height: '90%', width: '100%', maxWidth: 600, alignSelf: 'center', overflow: 'hidden' },
+    modalContentCompact: { height: '96%' },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: '#EEE' },
     modalHeaderCompact: { flexDirection: 'column', alignItems: 'stretch', gap: 8 },
-    modalTitle: { fontSize: 18, fontWeight: 'bold' },
+    modalTitle: { fontSize: 18, fontWeight: 'bold', flexShrink: 1 },
     modalHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     modalHeaderActionsCompact: { justifyContent: 'flex-end', gap: 6, flexShrink: 0 },
     headerBtn: { padding: 6, borderRadius: 6 },
@@ -474,43 +483,46 @@ const styles = StyleSheet.create({
     detailSummary: { padding: 15, backgroundColor: '#F9F9F9' },
     detailText: { fontSize: 14, color: '#666' },
     detailTotal: { fontSize: 18, fontWeight: 'bold', color: theme.colors.primary, marginTop: 5 },
-    itemsList: { maxHeight: 400 },
-    itemRow: { padding: 15 },
+    itemsList: { flex: 1, minHeight: 0 },
+    itemRow: { padding: 12 },
     itemNameCol: { flex: 1 },
     itemNameSnp: { fontWeight: 'bold', fontSize: 15, flexShrink: 1 },
     itemPriceSnp: { color: '#888', fontSize: 12 },
     itemQtyCol: { alignItems: 'flex-end' },
     itemQtyText: { fontWeight: 'bold' },
     itemSubtotalSnp: { color: theme.colors.primary, fontWeight: 'bold' },
-    editItemContainer: { borderWidth: 1, borderColor: '#DDD', borderRadius: 8, padding: 10 },
+    editItemContainer: { borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, padding: 12, backgroundColor: theme.colors.surface },
     deletedItemContainer: { backgroundColor: '#FFEBEE', borderColor: '#FFCDD2' },
     deletedOverlay: { alignItems: 'center', padding: 10 },
     deletedText: { color: '#C62828', fontWeight: 'bold', marginBottom: 5 },
     restoreBtn: { backgroundColor: '#E8F5E9', padding: 6, borderRadius: 4 },
     restoreBtnText: { color: '#2E7D32', fontSize: 12, fontWeight: 'bold' },
-    editItemHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-    deleteItemIconBtn: { padding: 5 },
+    editItemHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 6 },
+    editItemName: { flex: 1, minWidth: 0, lineHeight: 21 },
+    deleteItemIconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF1F2', borderRadius: 10 },
     deleteItemIcon: { color: '#FF5252', fontSize: 18 },
-    originalValuesRow: { flexDirection: 'row', gap: 15, marginBottom: 10 },
-    originalValueText: { fontSize: 11, color: '#888' },
-    originalValueBold: { fontWeight: 'bold', color: '#444' },
-    editRow: { flexDirection: 'row', gap: 15 },
-    editField: { flex: 1 },
-    editLabel: { fontSize: 11, fontWeight: 'bold', color: '#666', marginBottom: 4 },
-    qtyControlRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-    qtyBtn: { width: 30, height: 30, backgroundColor: '#EEE', borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+    originalValueText: { fontSize: 12, lineHeight: 18, color: theme.colors.mutedText, marginBottom: 12 },
+    editRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+    editField: { flexGrow: 1, flexBasis: 165, minWidth: 0 },
+    editLabel: { fontSize: 12, fontWeight: '600', color: '#555', marginBottom: 6 },
+    qtyControlRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    qtyBtn: { width: 44, height: 44, flexShrink: 0, backgroundColor: '#EEF2FF', borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
     qtyBtnText: { fontSize: 20, fontWeight: 'bold' },
-    editInput: { borderBottomWidth: 1, borderBottomColor: theme.colors.primary, padding: 5, backgroundColor: '#F5F5F5', borderRadius: 4, textAlign: 'center' },
-    editSubtotal: { marginTop: 10, alignItems: 'flex-end' },
-    editSubtotalValue: { fontWeight: 'bold', color: theme.colors.primary, fontSize: 16 },
-    actionButtonsContainer: { flexDirection: 'row', padding: 15, gap: 10, borderTopWidth: 1, borderTopColor: '#EEE' },
-    actionButtonsContainerCompact: { flexDirection: 'column', padding: 12 },
-    actionBtn: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center' },
+    editInput: { minHeight: 44, borderColor: theme.colors.border, backgroundColor: theme.colors.surface, borderRadius: 10, paddingHorizontal: 8 },
+    qtyInput: { flex: 1, minWidth: 0 },
+    editInputText: { textAlign: 'center', fontSize: 16, fontVariant: ['tabular-nums'] },
+    editErrorText: { color: theme.colors.danger, fontSize: 12, marginTop: 8 },
+    editSubtotal: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: theme.colors.border, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+    editSubtotalValue: { fontWeight: 'bold', color: theme.colors.primary, fontSize: 16, fontVariant: ['tabular-nums'] },
+    actionButtonsContainer: { flexDirection: 'row', flexShrink: 0, flexWrap: 'wrap', padding: 15, gap: 10, borderTopWidth: 1, borderTopColor: '#EEE' },
+    actionButtonsContainerCompact: { padding: 12 },
+    actionBtn: { flexGrow: 1, flexBasis: 100, minHeight: 48, padding: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
     actionBtnDisabled: { opacity: 0.55 },
     saveBtn: { backgroundColor: theme.colors.primary },
     cancelBtn: { backgroundColor: '#EEE' },
+    cancelBtnText: { color: theme.colors.text },
     actionBtnText: { fontWeight: 'bold', color: '#FFF' },
-    inputError: { borderBottomColor: '#FF5252' },
+    inputError: { borderColor: '#FF5252' },
 
     // Add Product Section
     addProductSection: { paddingHorizontal: 15, paddingTop: 12, paddingBottom: 8, borderTopWidth: 1, borderTopColor: '#EEE' },

@@ -5,20 +5,20 @@
 
 import { formatDateShort } from '../../../shared/utils/dates';
 
-const MS_PER_DAY = 86_400_000;
-
 /**
  * Check if a given date (ms timestamp) corresponds to "today" in local time.
  */
-export const isToday = (dateMs: number): boolean => {
-    return formatDateShort(dateMs) === formatDateShort(Date.now());
+export const isToday = (dateMs: number, now = new Date()): boolean => {
+    return formatDateShort(dateMs) === formatDateShort(now.getTime());
 };
 
 /**
  * Check if a given date (ms timestamp) corresponds to "yesterday" in local time.
  */
-export const isYesterday = (dateMs: number): boolean => {
-    return formatDateShort(dateMs) === formatDateShort(Date.now() - MS_PER_DAY);
+export const isYesterday = (dateMs: number, now = new Date()): boolean => {
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    return formatDateShort(dateMs) === formatDateShort(yesterday.getTime());
 };
 
 /**

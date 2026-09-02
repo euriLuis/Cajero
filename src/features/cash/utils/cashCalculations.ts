@@ -7,10 +7,12 @@ export type DenominationsState = Record<string, number>;
 export type QuantitiesDraft = Record<string, string>;
 
 /** Default denomination keys in the system */
-export const DEFAULT_DENOMS = [1000, 500, 200, 100, 50, 20, 10, 5] as const;
+export const DEFAULT_DENOMS = [5000, 2000, 1000, 500, 200, 100, 50, 20, 10, 5] as const;
 
 /** Empty cash state: all denominations at zero */
 export const EMPTY_CASH_STATE: DenominationsState = {
+    "5000": 0,
+    "2000": 0,
     "1000": 0,
     "500": 0,
     "200": 0,
@@ -19,6 +21,31 @@ export const EMPTY_CASH_STATE: DenominationsState = {
     "20": 0,
     "10": 0,
     "5": 0,
+};
+
+/** Validate at the write boundary, including values loaded from JSON. */
+export const validateCashDenominations = (
+    value: unknown,
+    denoms: readonly number[] = DEFAULT_DENOMS,
+): number => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        throw new Error('El desglose de denominaciones de caja no es válido.');
+    }
+    let total = 0;
+    for (const [key, qty] of Object.entries(value)) {
+        const denom = Number(key);
+        if (String(denom) !== key || !denoms.includes(denom)) {
+            throw new Error(`La denominación $${key} no está admitida en el contador.`);
+        }
+        if (typeof qty !== 'number' || !Number.isSafeInteger(qty) || qty < 0) {
+            throw new Error(`La cantidad de billetes de $${key} debe ser un número entero no negativo.`);
+        }
+        total += denom * 100 * qty;
+        if (!Number.isSafeInteger(total)) {
+            throw new Error('El importe de caja supera el límite seguro. Reduce las cantidades.');
+        }
+    }
+    return total;
 };
 
 /**
@@ -57,11 +84,19 @@ export const buildDenomsDelta = (
 ): Record<string, number> => {
     const delta: Record<string, number> = {};
     for (const d of denoms) {
-        const qty = parseInt(quantities[d.toString()] || '', 10) || 0;
+        const raw = quantities[d.toString()] ?? '';
+        if (typeof raw !== 'string' || (raw.trim() !== '' && !/^\d+$/.test(raw.trim()))) {
+            throw new Error(`La cantidad de billetes de $${d} debe ser un número entero no negativo.`);
+        }
+        const qty = Number(raw.trim());
+        if (!Number.isSafeInteger(qty)) {
+            throw new Error(`La cantidad de billetes de $${d} supera el límite seguro.`);
+        }
         if (qty > 0) {
             delta[d.toString()] = qty;
         }
     }
+    validateCashDenominations(delta, denoms);
     return delta;
 };
 

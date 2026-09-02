@@ -1,21 +1,18 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { salesRepo, withdrawalsRepo } from '../../../data/repositories';
+import type { ProductSoldSummary } from '../../../data/repositories/salesRepo';
 import { Withdrawal } from '../../../shared/domain/models/Withdrawal';
 import { getDayRangeMs, getWeekRangeMs } from '../../../shared/utils/dates';
+import { useLocalDateSelection } from '../../../shared/hooks/useLocalDateSelection';
 import { parseMoneyToCents } from '../../../shared/utils/money';
 import { useErrorReporter, useSoftNotice } from '../../../ui/components';
 import { isToday, isYesterday } from '../../shared/utils/dateComparisons';
 import { validateMonetaryAmount } from '../../shared/utils/validation';
 import { calculateDailySalary, calculateWeeklySalary } from '../utils/salaryCalculations';
 
-interface ProductSold {
-    productName: string;
-    totalQty: number;
-}
-
 export function useSummaryScreen() {
-    const [currentDate, setCurrentDate] = useState(new Date());
+    const { currentDate, setCurrentDate, selectQuickDate, getSelectedDate, localDay } = useLocalDateSelection();
     const [showDatePicker, setShowDatePicker] = useState(false);
 
     const [totalSales, setTotalSales] = useState(0);
@@ -23,7 +20,7 @@ export function useSummaryScreen() {
     const [totalWeeklySales, setTotalWeeklySales] = useState(0);
     const [totalDailySalary, setTotalDailySalary] = useState(0);
     const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
-    const [productsSold, setProductsSold] = useState<ProductSold[]>([]);
+    const [productsSold, setProductsSold] = useState<ProductSoldSummary[]>([]);
     const [loading, setLoading] = useState(false);
 
     const [formAmount, setFormAmount] = useState('');
@@ -35,29 +32,48 @@ export function useSummaryScreen() {
     const pendingDeleteTimerRef = useRef<NodeJS.Timeout | null>(null);
     const { showNotice } = useSoftNotice();
     const { reportError } = useErrorReporter();
+    const viewKey = `${currentDate.getTime()}|${localDay}`;
+    const activeViewKey = useRef(viewKey);
+    activeViewKey.current = viewKey;
+    const loadVersion = useRef(0);
+    const dataViewKey = useRef('');
 
     const loadData = useCallback(async () => {
+        if (activeViewKey.current !== viewKey) return;
+        const version = ++loadVersion.current;
+        const isCurrent = () => version === loadVersion.current && activeViewKey.current === viewKey;
+        if (dataViewKey.current !== viewKey) {
+            setTotalSales(0);
+            setTotalWithdrawals(0);
+            setTotalWeeklySales(0);
+            setTotalDailySalary(0);
+            setWithdrawals([]);
+            setProductsSold([]);
+            dataViewKey.current = viewKey;
+        }
         setLoading(true);
         try {
-            const { startMs, endMs } = getDayRangeMs(currentDate);
-            const { startMs: weekStartMs, endMs: weekEndMs } = getWeekRangeMs(currentDate);
+            const date = getSelectedDate();
+            const { startMs, endMs } = getDayRangeMs(date);
+            const { startMs: weekStartMs, endMs: weekEndMs } = getWeekRangeMs(date);
 
-            const [salesSum, withSum, withList, weeklySalesSum, productsSoldList, salaryDaily] = await Promise.all([
+            const [salesSum, withSum, withList, weeklySalesSum, productsSoldList] = await Promise.all([
                 salesRepo.sumSalesByRange(startMs, endMs),
                 withdrawalsRepo.sumWithdrawalsByRange(startMs, endMs),
                 withdrawalsRepo.listWithdrawalsByRange(startMs, endMs),
                 salesRepo.sumSalesByRange(weekStartMs, weekEndMs),
                 salesRepo.getProductsSoldSummary(startMs, endMs),
-                salesRepo.sumSalesByRange(startMs, endMs).then(sales => calculateDailySalary(sales)),
             ]);
 
+            if (!isCurrent()) return;
             setTotalSales(salesSum);
             setTotalWithdrawals(withSum);
             setWithdrawals(withList);
             setTotalWeeklySales(weeklySalesSum);
-            setTotalDailySalary(salaryDaily);
+            setTotalDailySalary(calculateDailySalary(salesSum));
             setProductsSold(productsSoldList);
         } catch (error) {
+            if (!isCurrent()) return;
             showNotice({ title: 'Error', message: 'No se pudieron cargar los datos de la caja', type: 'error' });
             reportError({
                 title: 'Error cargando resumen',
@@ -68,14 +84,17 @@ export function useSummaryScreen() {
                 details: `Fecha seleccionada: ${currentDate.toISOString()}`,
             });
         } finally {
-            setLoading(false);
+            if (isCurrent()) setLoading(false);
         }
-    }, [currentDate, showNotice, reportError]);
+    }, [viewKey, getSelectedDate, currentDate, showNotice, reportError]);
+    const latestLoadData = useRef(loadData);
+    latestLoadData.current = loadData;
 
     useFocusEffect(
         useCallback(() => {
             loadData();
             return () => {
+                loadVersion.current += 1;
                 if (pendingDeleteTimerRef.current) {
                     clearTimeout(pendingDeleteTimerRef.current);
                     pendingDeleteTimerRef.current = null;
@@ -106,14 +125,12 @@ export function useSummaryScreen() {
 
     const handleDateChange = useCallback((event: any, date?: Date) => {
         setShowDatePicker(false);
-        if (date) setCurrentDate(date);
-    }, []);
+        if (event.type === 'set' && date) setCurrentDate(date);
+    }, [setCurrentDate]);
 
     const handleQuickDate = useCallback((type: 'today' | 'yesterday') => {
-        const newDate = new Date();
-        if (type === 'yesterday') newDate.setDate(newDate.getDate() - 1);
-        setCurrentDate(newDate);
-    }, []);
+        selectQuickDate(type);
+    }, [selectQuickDate]);
 
     const validateAmount = useCallback((amount: string) => {
         const normalized = amount.trim().replace(/[$ ]/g, '').replace(',', '.');
@@ -150,10 +167,11 @@ export function useSummaryScreen() {
 
         try {
             setIsSavingWithdrawal(true);
-            let createdAtMs = Date.now();
-            const selectedDateMs = currentDate.getTime();
-            if (!isToday(selectedDateMs)) {
-                const combined = new Date(currentDate);
+            const now = new Date();
+            let createdAtMs = now.getTime();
+            const date = getSelectedDate(now);
+            if (!isToday(date.getTime(), now)) {
+                const combined = new Date(date);
                 combined.setHours(12, 0, 0, 0);
                 createdAtMs = combined.getTime();
             }
@@ -162,7 +180,7 @@ export function useSummaryScreen() {
             setFormAmount('');
             setFormReason('');
             setAmountError(null);
-            await loadData();
+            await latestLoadData.current();
         } catch (error) {
             showNotice({ title: 'Error', message: 'No se pudo registrar la extracción', type: 'error' });
             reportError({
@@ -176,7 +194,7 @@ export function useSummaryScreen() {
         } finally {
             setIsSavingWithdrawal(false);
         }
-    }, [formAmount, formReason, currentDate, validateAmount, loadData, showNotice, isSavingWithdrawal, reportError]);
+    }, [formAmount, formReason, currentDate, getSelectedDate, validateAmount, loadData, showNotice, isSavingWithdrawal, reportError]);
 
     const handleDeleteWithdrawal = useCallback((withdrawal: Withdrawal) => {
         setPendingDelete({ id: withdrawal.id, withdrawal });
@@ -187,7 +205,7 @@ export function useSummaryScreen() {
             try {
                 await withdrawalsRepo.deleteWithdrawal(withdrawal.id);
                 setPendingDelete(null);
-                loadData();
+                latestLoadData.current();
             } catch (error) {
                 showNotice({ title: 'Error', message: 'No se pudo eliminar la extracción', type: 'error' });
                 reportError({

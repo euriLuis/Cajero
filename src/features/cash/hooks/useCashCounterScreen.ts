@@ -4,6 +4,7 @@ import { Alert, TextInput } from 'react-native';
 import { cashRepo, salesRepo, withdrawalsRepo } from '../../../data/repositories';
 import { CashMovement, CashState } from '../../../data/repositories/cashRepo';
 import { getDayRangeMs, formatDateShort } from '../../../shared/utils/dates';
+import { useLocalDay } from '../../../shared/hooks/useLocalDay';
 import { formatCents } from '../../../shared/utils/money';
 import { useErrorReporter, useSoftNotice } from '../../../ui/components';
 import {
@@ -19,6 +20,10 @@ import {
 type QuantitiesState = Record<string, string>;
 
 export function useCashCounterScreen() {
+    const localDay = useLocalDay();
+    const activeDay = useRef(localDay);
+    activeDay.current = localDay;
+    const loadVersion = useRef(0);
     const [quantities, setQuantities] = useState<QuantitiesState>({});
     const [cashState, setCashState] = useState<CashState | null>(null);
     const [movements, setMovements] = useState<CashMovement[]>([]);
@@ -41,6 +46,9 @@ export function useCashCounterScreen() {
     const lastSavedDraftRef = useRef(JSON.stringify({}));
 
     const loadData = useCallback(async (isRefresh = false) => {
+        if (activeDay.current !== localDay) return;
+        const version = ++loadVersion.current;
+        const isCurrent = () => version === loadVersion.current && activeDay.current === localDay;
         if (!isRefresh && !initialLoadDone.current) setLoading(true);
         else setRefreshing(true);
 
@@ -48,33 +56,36 @@ export function useCashCounterScreen() {
             await cashRepo.resetCashStateIfNewDay();
 
             const [draft, state, movs, salesDraftTotal, { startMs, endMs }] = await Promise.all([
-                cashRepo.getCashCounterDraft(),
+                initialLoadDone.current ? Promise.resolve(null) : cashRepo.getCashCounterDraft(),
                 cashRepo.getCashState(),
                 cashRepo.listCashMovements(20),
                 salesRepo.getCurrentSaleDraftTotal(),
                 getDayRangeMs(new Date())
             ]);
 
-            const initial: QuantitiesState = {};
-            DEFAULT_DENOMS.forEach(d => {
-                initial[d.toString()] = draft[d.toString()] || '';
-            });
-
-            lastSavedDraftRef.current = JSON.stringify(initial);
-            setQuantities(initial);
-            setCashState(state);
-            setMovements(movs);
-            setSalesTabTotal(salesDraftTotal);
-
             const [salesSum, withdrawalsSum] = await Promise.all([
                 salesRepo.sumSalesByRange(startMs, endMs),
                 withdrawalsRepo.sumWithdrawalsByRange(startMs, endMs)
             ]);
 
+            if (!isCurrent()) return;
+            // Refreshing the day must not overwrite a count still being typed/saved.
+            if (draft !== null) {
+                const initial: QuantitiesState = {};
+                DEFAULT_DENOMS.forEach(d => {
+                    initial[d.toString()] = draft[d.toString()] || '';
+                });
+                lastSavedDraftRef.current = JSON.stringify(initial);
+                setQuantities(initial);
+            }
+            setCashState(state);
+            setMovements(movs);
+            setSalesTabTotal(salesDraftTotal);
             setTotalSalesToday(salesSum);
             setTotalWithdrawalsToday(withdrawalsSum);
             initialLoadDone.current = true;
         } catch (error) {
+            if (!isCurrent()) return;
             showNotice({ title: 'Error', message: 'No se pudieron cargar los datos de caja', type: 'error' });
             reportError({
                 title: 'Error cargando contador',
@@ -84,16 +95,22 @@ export function useCashCounterScreen() {
                 reproductionSteps: 'Abrir la seccion Contador o hacer pull-to-refresh.',
             });
         } finally {
-            setLoading(false);
-            setRefreshing(false);
+            if (isCurrent()) {
+                setLoading(false);
+                setRefreshing(false);
+            }
         }
-    }, [showNotice, reportError]);
+    }, [localDay, showNotice, reportError]);
+    const latestLoadData = useRef(loadData);
+    latestLoadData.current = loadData;
 
     useFocusEffect(
         useCallback(() => {
             loadData();
             return () => {
+                loadVersion.current += 1;
                 if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+                setDeletingId(null);
             };
         }, [loadData])
     );
@@ -172,12 +189,17 @@ export function useCashCounterScreen() {
     );
 
     const handleApplyMovement = useCallback(async (type: 'IN' | 'OUT') => {
+        let denomsDelta: Record<string, number>;
+        try {
+            denomsDelta = buildDenomsDelta(quantities as QuantitiesDraft);
+        } catch (error) {
+            showNotice({ title: 'Conteo inválido', message: (error as Error).message, type: 'error' });
+            return;
+        }
         if (totalContadoCents === 0) {
             showNotice({ title: 'Conteo vacío', message: 'Ingresa cantidades antes de aplicar un movimiento.', type: 'info' });
             return;
         }
-
-        const denomsDelta = buildDenomsDelta(quantities as QuantitiesDraft);
 
         const actionText = type === 'IN' ? 'AGREGAR' : 'RESTAR';
         Alert.alert(
@@ -195,7 +217,7 @@ export function useCashCounterScreen() {
                             lastSavedDraftRef.current = JSON.stringify(reset);
                             await cashRepo.setCashCounterDraft(reset);
                             setQuantities(reset);
-                            await loadData(true);
+                            await latestLoadData.current(true);
                         } catch (error: any) {
                             showNotice({ title: 'Error', message: error.message, type: 'error' });
                             reportError({
@@ -226,7 +248,7 @@ export function useCashCounterScreen() {
             try {
                 await cashRepo.deleteCashMovement(idToDelete);
                 setDeletingId(null);
-                await loadData(true);
+                await latestLoadData.current(true);
             } catch (error: any) {
                 showNotice({ title: 'Error', message: error.message || 'No se pudo eliminar el movimiento', type: 'error' });
                 reportError({

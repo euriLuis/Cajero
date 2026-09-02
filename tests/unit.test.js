@@ -150,13 +150,26 @@ test('salary calculations apply 0.5 percent rate with cent rounding', () => {
 });
 
 test('cash calculations total drafts, states and movement deltas', () => {
-  assert.deepEqual(DEFAULT_DENOMS, [1000, 500, 200, 100, 50, 20, 10, 5]);
+  assert.deepEqual(DEFAULT_DENOMS, [5000, 2000, 1000, 500, 200, 100, 50, 20, 10, 5]);
   assert.equal(calculateTotalFromDraft({ '1000': '1', '50': '2', '10': 'bad' }), 110000);
   assert.equal(calculateTotalFromState({ ...EMPTY_CASH_STATE, '500': 2, '5': 3 }), 101500);
   assert.deepEqual(buildDenomsDelta({ '1000': '0', '500': '2', '20': '', '5': '3' }), {
     '500': 2,
     '5': 3,
   });
+});
+
+test('cash calculations include 2000 and 5000 bills and preserve older counts', () => {
+  assert.deepEqual(EMPTY_CASH_STATE, Object.fromEntries(DEFAULT_DENOMS.map(denom => [denom, 0])));
+  assert.equal(calculateTotalFromState(EMPTY_CASH_STATE), 0);
+
+  const draft = { '5000': '2', '2000': '3', '1000': '1', '50': '2' };
+  const delta = buildDenomsDelta(draft);
+  assert.deepEqual(delta, { '5000': 2, '2000': 3, '1000': 1, '50': 2 });
+  assert.equal(calculateTotalFromDraft(draft), 1710000);
+  assert.equal(calculateTotalFromState(delta), 1710000);
+  assert.equal(calculateTotalFromState({ '1000': 1, '50': 2 }), 110000);
+  assert.deepEqual(buildDenomsDelta({ '5000': '', '2000': '0' }), {});
 });
 
 test('cash calculations compute expected balances and classify differences', () => {

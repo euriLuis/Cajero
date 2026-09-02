@@ -12,6 +12,12 @@ export interface CreateSaleParams {
     createdAtMs?: number;
 }
 
+export interface ProductSoldSummary {
+    productName: string;
+    totalQty: number;
+    totalCents: number;
+}
+
 export const salesRepo = {
     async createSale(params: CreateSaleParams): Promise<void> {
         const db = await getDb();
@@ -252,10 +258,10 @@ export const salesRepo = {
         );
     },
 
-    async getProductsSoldSummary(startMs: number, endMs: number): Promise<Array<{ productName: string; totalQty: number }>> {
+    async getProductsSoldSummary(startMs: number, endMs: number): Promise<ProductSoldSummary[]> {
         const db = await getDb();
         const result = await db.getAllAsync<any>(
-            `SELECT product_name_snapshot, SUM(qty) as total_qty 
+            `SELECT product_name_snapshot, SUM(qty) as total_qty, SUM(line_total_cents) as total_cents
              FROM sale_items 
              WHERE sale_id IN (
                  SELECT id FROM sales WHERE created_at >= ? AND created_at <= ?
@@ -267,7 +273,8 @@ export const salesRepo = {
 
         return result.map(row => ({
             productName: row.product_name_snapshot,
-            totalQty: row.total_qty
+            totalQty: row.total_qty,
+            totalCents: row.total_cents,
         }));
     },
 };
